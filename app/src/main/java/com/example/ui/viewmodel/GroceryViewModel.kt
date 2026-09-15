@@ -17,6 +17,7 @@ import com.example.data.notification.NotificationDispatcher
 import com.example.data.notification.SmtpResult
 import com.example.data.notification.TelegramDispatchReport
 import com.example.data.repository.GroceryRepository
+import com.example.data.repository.SheetImportResult
 import com.example.data.update.AppUpdateManager
 import com.example.data.update.UpdateStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -423,6 +424,22 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
             repository.resetToOfficialCatalog()
             toastMessage.value = "Reset to official catalog (37 fresh produce items with live prices)"
         }
+    }
+
+    // Admin: Import Sheet 2 Data (Picture URLs & Future Products)
+    val sheetImportResult = MutableStateFlow<SheetImportResult?>(null)
+
+    fun importSheetData(sheetText: String, onComplete: ((SheetImportResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            val result = repository.importSheetData(sheetText)
+            sheetImportResult.value = result
+            toastMessage.value = "Imported: ${result.updatedCount} photos updated, ${result.addedCount} future products added"
+            onComplete?.invoke(result)
+        }
+    }
+
+    fun clearSheetImportResult() {
+        sheetImportResult.value = null
     }
 
     // Admin: Update Product (full object)

@@ -17,6 +17,9 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY isDailyEssential DESC, name ASC")
     fun getAllProducts(): Flow<List<Product>>
 
+    @Query("SELECT * FROM products")
+    suspend fun getAllProductsDirect(): List<Product>
+
     @Query("SELECT * FROM products WHERE id = :id")
     fun getProductById(id: Long): Flow<Product?>
 

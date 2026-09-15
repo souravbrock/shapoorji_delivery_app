@@ -22,6 +22,16 @@ import org.json.JSONObject
 import java.util.UUID
 import kotlin.random.Random
 
+/**
+ * Data class holding import statistics from Sheet 2 data.
+ */
+data class SheetImportResult(
+    val updatedCount: Int,
+    val addedCount: Int,
+    val skippedCount: Int,
+    val details: List<String>
+)
+
 class GroceryRepository(
     private val productDao: ProductDao,
     private val orderDao: OrderDao,
@@ -75,6 +85,110 @@ class GroceryRepository(
     suspend fun deleteProduct(product: Product) = productDao.deleteProduct(product)
 
     suspend fun deleteProductById(id: Long) = productDao.deleteProductById(id)
+
+    /**
+     * Import or update produce photos and future products from Sheet 2 data.
+     * Supports tab-separated (copy-pasted from Google Sheets / Excel), CSV, and pipe-separated lines.
+     * Matches existing products to update image URLs, and creates new future products.
+     */
+    suspend fun importSheetData(sheetText: String): SheetImportResult {
+        val existingProducts = productDao.getAllProductsDirect().toMutableList()
+        var updated = 0
+        var added = 0
+        var skipped = 0
+        val log = mutableListOf<String>()
+
+        val urlRegex = Regex("""(https?://[^\s,"']+|file://[^\s,"']+)""")
+
+        val lines = sheetText.lines().map { it.trim() }.filter { it.isNotBlank() }
+        for (line in lines) {
+            // Skip header lines
+            val lowerLine = line.lowercase()
+            if (lowerLine.contains("product") && (lowerLine.contains("url") || lowerLine.contains("image") || lowerLine.contains("picture") || lowerLine.contains("photo") || lowerLine.contains("price") || lowerLine.contains("link"))) {
+                continue
+            }
+
+            val urlMatch = urlRegex.find(line)
+            if (urlMatch == null) {
+                skipped++
+                continue
+            }
+
+            val url = urlMatch.value.trim()
+            val beforeUrl = line.substring(0, urlMatch.range.first).trim().trimEnd(',', '\t', ';')
+            val afterUrl = line.substring(urlMatch.range.last + 1).trim().trimStart(',', '\t', ';')
+
+            val rawName = if (beforeUrl.isNotBlank()) beforeUrl else {
+                afterUrl.split(',', '\t').firstOrNull()?.trim() ?: ""
+            }
+
+            val cleanName = rawName.trim('"', '\'').trim()
+            if (cleanName.isBlank()) {
+                skipped++
+                continue
+            }
+
+            val englishCandidate = cleanName.split("|").first().trim().lowercase()
+            val matchedProduct = existingProducts.find { existing ->
+                val existingLower = existing.name.lowercase()
+                val existingEng = existing.name.split("|").first().trim().lowercase()
+                existingLower == cleanName.lowercase() ||
+                existingEng == englishCandidate ||
+                (englishCandidate.length >= 4 && (existingLower.contains(englishCandidate) || englishCandidate.contains(existingEng)))
+            }
+
+            if (matchedProduct != null) {
+                val updatedProd = matchedProduct.copy(
+                    imageUrl = url,
+                    updatedAt = System.currentTimeMillis()
+                )
+                productDao.updateProduct(updatedProd)
+                val index = existingProducts.indexOfFirst { it.id == matchedProduct.id }
+                if (index >= 0) existingProducts[index] = updatedProd
+                updated++
+                log.add("Updated photo: ${matchedProduct.name.split("|").first().trim()}")
+            } else {
+                val isFruit = cleanName.contains("apple", ignoreCase = true) ||
+                        cleanName.contains("grape", ignoreCase = true) ||
+                        cleanName.contains("banana", ignoreCase = true) ||
+                        cleanName.contains("orange", ignoreCase = true) ||
+                        cleanName.contains("mango", ignoreCase = true) ||
+                        cleanName.contains("melon", ignoreCase = true) ||
+                        cleanName.contains("papaya", ignoreCase = true) ||
+                        cleanName.contains("coconut", ignoreCase = true) ||
+                        cleanName.contains("pineapple", ignoreCase = true) ||
+                        cleanName.contains("fruit", ignoreCase = true) ||
+                        cleanName.contains("ফল", ignoreCase = true)
+
+                var parsedPrice = 60.0
+                val priceNumberMatch = Regex("""\d+(\.\d+)?""").find(afterUrl)
+                if (priceNumberMatch != null) {
+                    parsedPrice = priceNumberMatch.value.toDoubleOrNull() ?: 60.0
+                }
+
+                val newProduct = Product(
+                    name = cleanName,
+                    category = if (isFruit) "Fruits" else "Vegetables",
+                    unit = "1 kg",
+                    price = parsedPrice,
+                    mrp = (parsedPrice * 1.15).toInt().toDouble(),
+                    stockQty = 50,
+                    description = "Freshly sourced premium quality produce delivered straight to your Shapoorji doorstep.",
+                    imageUrl = url,
+                    isDailyEssential = false,
+                    isAvailable = true,
+                    allowFractional = true,
+                    fractionStepGrams = 250,
+                    updatedAt = System.currentTimeMillis()
+                )
+                val newId = productDao.insertProduct(newProduct)
+                existingProducts.add(newProduct.copy(id = newId))
+                added++
+                log.add("Added future product: $cleanName")
+            }
+        }
+        return SheetImportResult(updated, added, skipped, log)
+    }
 
     // Shopping Cart (Room-backed)
     val allCartEntities: Flow<List<CartItemEntity>> = cartDao.getAllCartItems()

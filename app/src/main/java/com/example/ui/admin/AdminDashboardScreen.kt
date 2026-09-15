@@ -86,6 +86,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.ui.text.TextStyle
+import com.example.data.repository.SheetImportResult
 import com.example.data.model.NotificationLog
 import com.example.data.model.NotificationType
 import com.example.data.model.Order
@@ -124,7 +129,9 @@ fun AdminDashboardScreen(
     val logs by viewModel.notificationLogs.collectAsState()
 
     var showAddProductDialog by remember { mutableStateOf(false) }
+    var showImportSheetDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
+    val sheetImportResult by viewModel.sheetImportResult.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -254,7 +261,8 @@ fun AdminDashboardScreen(
                     onEditProduct = { editingProduct = it },
                     onDeleteProduct = { viewModel.deleteProduct(it) },
                     onAddClick = { showAddProductDialog = true },
-                    onResetOfficial = { viewModel.resetToOfficialCatalog() }
+                    onResetOfficial = { viewModel.resetToOfficialCatalog() },
+                    onImportSheetClick = { showImportSheetDialog = true }
                 )
                 3 -> AdminNotificationLogsTab(
                     logs = logs,
@@ -304,6 +312,17 @@ fun AdminDashboardScreen(
                 viewModel.updateProduct(updated)
                 editingProduct = null
             }
+        )
+    }
+
+    if (showImportSheetDialog) {
+        SheetImportDialog(
+            onDismiss = { showImportSheetDialog = false },
+            onImport = { sheetText ->
+                viewModel.importSheetData(sheetText)
+            },
+            importResult = sheetImportResult,
+            onClearResult = { viewModel.clearSheetImportResult() }
         )
     }
 }
@@ -621,7 +640,7 @@ fun DailyPriceItemRow(
 }
 
 // -------------------------------------------------------------
-// TAB 3: PRODUCTS CRUD (ADD, EDIT, DELETE)
+// TAB 3: PRODUCTS CRUD (ADD, EDIT, DELETE, IMPORT)
 // -------------------------------------------------------------
 @Composable
 fun AdminProductsCatalogTab(
@@ -629,7 +648,8 @@ fun AdminProductsCatalogTab(
     onEditProduct: (Product) -> Unit,
     onDeleteProduct: (Product) -> Unit,
     onAddClick: () -> Unit,
-    onResetOfficial: () -> Unit
+    onResetOfficial: () -> Unit,
+    onImportSheetClick: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -643,32 +663,46 @@ fun AdminProductsCatalogTab(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Official Store Catalog (${products.size} Items)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = EmeraldGreenDark
-                        )
-                        Text(
-                            text = "37 produce items (Vegetables & Fruits) with multilingual Bengali & Hindi titles and live rates.",
-                            fontSize = 11.sp,
-                            color = EmeraldGreenDark.copy(alpha = 0.85f)
-                        )
-                    }
+                    Text(
+                        text = "Store Produce Catalog (${products.size} Items)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = EmeraldGreenDark
+                    )
+                    Text(
+                        text = "Produce catalog with live rates, multilingual titles, and image links.",
+                        fontSize = 11.sp,
+                        color = EmeraldGreenDark.copy(alpha = 0.85f)
+                    )
 
-                    OutlinedButton(
-                        onClick = onResetOfficial,
-                        shape = RoundedCornerShape(8.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Sync Official", fontSize = 11.sp)
+                        Button(
+                            onClick = onImportSheetClick,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Sheet 2 (URLs & Items)", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = onResetOfficial,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Sync (37)", fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -2052,4 +2086,129 @@ fun AdminSystemUpdatesTab(
             }
         }
     }
+}
+
+@Composable
+fun SheetImportDialog(
+    onDismiss: () -> Unit,
+    onImport: (String) -> Unit,
+    importResult: SheetImportResult?,
+    onClearResult: () -> Unit
+) {
+    var sheetText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = {
+            onClearResult()
+            onDismiss()
+        },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CloudUpload,
+                    contentDescription = null,
+                    tint = EmeraldGreenPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Import Sheet 2 (URLs & Items)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Paste rows from Sheet 2 below (supports CSV, tab-separated copied from Google Sheets / Excel, or line-by-line). Existing produce photos will be updated and any new future products will be added to the store.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = EmeraldContainer),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Supported Formats:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldGreenDark
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "• Product Name, Image URL\n• Product Name [TAB] Image URL\n• Future Item, URL, 80, 1 kg, Vegetables",
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = EmeraldGreenDark
+                        )
+                    }
+                }
+
+                if (importResult != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "✓ Import Completed!",
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldGreenDark,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "• ${importResult.updatedCount} produce photos updated\n• ${importResult.addedCount} new future products added\n• ${importResult.skippedCount} lines skipped",
+                                fontSize = 11.sp,
+                                color = EmeraldGreenDark
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = sheetText,
+                    onValueChange = { sheetText = it },
+                    placeholder = {
+                        Text(
+                            "Paste Sheet 2 lines here...\n\nExample:\nChandramukhi Potato, https://...\nBroccoli, https://...",
+                            fontSize = 11.sp
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    textStyle = TextStyle(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (sheetText.isNotBlank()) {
+                        onImport(sheetText)
+                    }
+                },
+                enabled = sheetText.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
+            ) {
+                Text("Apply & Update")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = {
+                onClearResult()
+                onDismiss()
+            }) {
+                Text(if (importResult != null) "Close" else "Cancel")
+            }
+        }
+    )
 }
