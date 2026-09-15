@@ -96,12 +96,13 @@ class AuthManager(private val context: Context) {
                     val name = fbUser.displayName ?: "Google User"
                     val photoUrl = fbUser.photoUrl?.toString() ?: ""
                     if (email.isNotBlank()) {
+                        val existing = getRegisteredUser(email)
                         signInWithGoogle(
                             name = name,
                             email = email,
-                            phone = prefs.getString(KEY_USER_PHONE, "+91-8442980101") ?: "+91-8442980101",
-                            tower = prefs.getString(KEY_USER_TOWER, "Sukhobristi Phase 1 - Tower A4") ?: "Sukhobristi Phase 1 - Tower A4",
-                            flat = prefs.getString(KEY_USER_FLAT, "Flat 803, 8th Floor") ?: "Flat 803, 8th Floor",
+                            phone = existing?.phone ?: prefs.getString(KEY_USER_PHONE, "") ?: "",
+                            tower = existing?.tower ?: prefs.getString(KEY_USER_TOWER, "Sukhobristi Phase 1 - Tower A1") ?: "Sukhobristi Phase 1 - Tower A1",
+                            flat = existing?.flatNumber ?: prefs.getString(KEY_USER_FLAT, "") ?: "",
                             photoUrl = photoUrl
                         )
                     }
@@ -114,24 +115,24 @@ class AuthManager(private val context: Context) {
 
     private fun loadInitialUser(): UserProfile {
         val isSignedIn = prefs.getBoolean(KEY_IS_SIGNED_IN, false)
-        return if (isSignedIn) {
-            val activeEmail = prefs.getString(KEY_USER_EMAIL, ADMIN_EMAIL) ?: ADMIN_EMAIL
+        val activeEmail = prefs.getString(KEY_USER_EMAIL, null)
+        return if (isSignedIn && !activeEmail.isNullOrBlank()) {
             val registered = getRegisteredUser(activeEmail)
             registered ?: UserProfile(
-                name = prefs.getString(KEY_USER_NAME, "Sourav Brock") ?: "Sourav Brock",
+                name = prefs.getString(KEY_USER_NAME, "Resident") ?: "Resident",
                 email = activeEmail,
-                phone = prefs.getString(KEY_USER_PHONE, "+91-8442980101") ?: "+91-8442980101",
-                tower = prefs.getString(KEY_USER_TOWER, "Sukhobristi Phase 1 - Tower A4") ?: "Sukhobristi Phase 1 - Tower A4",
-                flatNumber = prefs.getString(KEY_USER_FLAT, "Flat 803, 8th Floor") ?: "Flat 803, 8th Floor",
+                phone = prefs.getString(KEY_USER_PHONE, "") ?: "",
+                tower = prefs.getString(KEY_USER_TOWER, "") ?: "",
+                flatNumber = prefs.getString(KEY_USER_FLAT, "") ?: "",
                 isGoogleSignedIn = true,
                 photoUrl = prefs.getString(KEY_USER_PHOTO, "") ?: ""
             )
         } else {
             UserProfile(
-                name = "Guest Resident",
+                name = "",
                 email = "",
-                phone = "+91-8442980101",
-                tower = "Sukhobristi Phase 1 - Tower A4",
+                phone = "",
+                tower = "",
                 flatNumber = "",
                 isGoogleSignedIn = false,
                 photoUrl = ""
@@ -143,26 +144,22 @@ class AuthManager(private val context: Context) {
      * Gets all registered emails remembered on this device.
      */
     fun getRegisteredEmails(): Set<String> {
-        val set = prefs.getStringSet(KEY_REGISTERED_EMAILS, emptySet())?.toMutableSet() ?: mutableSetOf()
-        set.add(ADMIN_EMAIL.lowercase())
-        return set
+        return prefs.getStringSet(KEY_REGISTERED_EMAILS, emptySet()) ?: emptySet()
     }
 
     /**
-     * Retrieves saved profile for a registered email.
+     * Retrieves saved profile for a registered email on this device.
      */
     fun getRegisteredUser(email: String): UserProfile? {
         val cleanEmail = email.trim().lowercase()
         if (cleanEmail.isBlank()) return null
         
-        val isAdmin = cleanEmail == ADMIN_EMAIL.lowercase()
         val nameKey = "user_${cleanEmail}_name"
-        val savedName = prefs.getString(nameKey, null) ?: if (isAdmin) "Sourav Brock" else null
-        if (savedName == null) return null
+        val savedName = prefs.getString(nameKey, null) ?: return null
 
-        val phone = prefs.getString("user_${cleanEmail}_phone", if (isAdmin) "+91-8442980101" else "+91-8442980101") ?: "+91-8442980101"
-        val tower = prefs.getString("user_${cleanEmail}_tower", "Sukhobristi Phase 1 - Tower A4") ?: "Sukhobristi Phase 1 - Tower A4"
-        val flat = prefs.getString("user_${cleanEmail}_flat", if (isAdmin) "Flat 803, 8th Floor" else "Flat 101") ?: "Flat 101"
+        val phone = prefs.getString("user_${cleanEmail}_phone", "") ?: ""
+        val tower = prefs.getString("user_${cleanEmail}_tower", "Sukhobristi Phase 1 - Tower A1") ?: "Sukhobristi Phase 1 - Tower A1"
+        val flat = prefs.getString("user_${cleanEmail}_flat", "") ?: ""
         val photo = prefs.getString("user_${cleanEmail}_photo", "") ?: ""
 
         return UserProfile(
@@ -185,7 +182,7 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Returns the last active registered user profile (or admin by default).
+     * Returns the last active registered user profile on this device, or null if fresh install.
      */
     fun getLastRegisteredUser(): UserProfile? {
         val lastEmail = prefs.getString(KEY_LAST_ACTIVE_EMAIL, null)
@@ -193,7 +190,7 @@ class AuthManager(private val context: Context) {
             val user = getRegisteredUser(lastEmail)
             if (user != null) return user
         }
-        return getRegisteredUser(ADMIN_EMAIL)
+        return null
     }
 
     /**
@@ -202,7 +199,7 @@ class AuthManager(private val context: Context) {
     fun isEmailRegistered(email: String): Boolean {
         val clean = email.trim().lowercase()
         if (clean.isBlank()) return false
-        return clean == ADMIN_EMAIL.lowercase() || getRegisteredEmails().contains(clean)
+        return getRegisteredEmails().contains(clean)
     }
 
     /**
@@ -263,10 +260,15 @@ class AuthManager(private val context: Context) {
         photoUrl: String = ""
     ): UserProfile {
         val cleanEmail = email.trim().lowercase()
-        val cleanName = name.trim().ifBlank { if (cleanEmail == ADMIN_EMAIL.lowercase()) "Sourav Brock" else "Resident" }
-        val cleanPhone = phone.trim().ifBlank { "+91-8442980101" }
-        val cleanTower = tower.trim().ifBlank { "Sukhobristi Phase 1 - Tower A4" }
-        val cleanFlat = flat.trim().ifBlank { "Flat 803, 8th Floor" }
+        val cleanName = name.trim().ifBlank {
+            cleanEmail.substringBefore("@")
+                .replace(".", " ")
+                .split(" ")
+                .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+        }
+        val cleanPhone = phone.trim()
+        val cleanTower = tower.trim().ifBlank { "Sukhobristi Phase 1 - Tower A1" }
+        val cleanFlat = flat.trim()
 
         val profile = UserProfile(
             name = cleanName,
@@ -370,14 +372,20 @@ class AuthManager(private val context: Context) {
 
         prefs.edit()
             .putBoolean(KEY_IS_SIGNED_IN, false)
+            .remove(KEY_USER_EMAIL)
+            .remove(KEY_USER_NAME)
+            .remove(KEY_USER_PHONE)
+            .remove(KEY_USER_TOWER)
+            .remove(KEY_USER_FLAT)
+            .remove(KEY_USER_PHOTO)
             .putString(KEY_LAST_ACTIVE_EMAIL, lastEmail)
             .apply()
 
         val guestUser = UserProfile(
-            name = "Guest Resident",
+            name = "",
             email = "",
-            phone = "+91-8442980101",
-            tower = "Sukhobristi Phase 1 - Tower A4",
+            phone = "",
+            tower = "",
             flatNumber = "",
             isGoogleSignedIn = false,
             photoUrl = ""

@@ -1,12 +1,12 @@
 package com.example.data.model
 
 data class UserProfile(
-    val name: String = "Sourav Brock",
-    val email: String = "souravbrock@gmail.com",
-    val phone: String = "+91-8442980101",
-    val tower: String = "Sukhobristi Phase 1 - Tower A4",
-    val flatNumber: String = "Flat 803, 8th Floor",
-    val isGoogleSignedIn: Boolean = true,
+    val name: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val tower: String = "",
+    val flatNumber: String = "",
+    val isGoogleSignedIn: Boolean = false,
     val photoUrl: String = ""
 ) {
     val isAdmin: Boolean get() = email.trim().equals("souravbrock@gmail.com", ignoreCase = true)

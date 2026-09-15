@@ -1,5 +1,9 @@
 package com.example.ui.auth
 
+import android.accounts.AccountManager
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -105,7 +109,38 @@ fun WelcomeScreen(
     var isSigningIn by remember { mutableStateOf(false) }
     var showResidentLoginDialog by remember { mutableStateOf(false) }
     var showGoogleAccountChooser by remember { mutableStateOf(false) }
+    var prefillEmail by remember { mutableStateOf("") }
+    var prefillName by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val googleAccountPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isSigningIn = false
+        if (result.resultCode == Activity.RESULT_OK) {
+            val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+            if (!accountName.isNullOrBlank()) {
+                val existing = authManager.getRegisteredUser(accountName)
+                if (existing != null) {
+                    onGoogleSignIn(
+                        existing.name,
+                        existing.email,
+                        existing.phone,
+                        existing.tower,
+                        existing.flatNumber
+                    )
+                } else {
+                    prefillEmail = accountName
+                    val derivedName = accountName.substringBefore("@")
+                        .replace(".", " ")
+                        .split(" ")
+                        .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+                    prefillName = derivedName
+                    showResidentLoginDialog = true
+                }
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -437,24 +472,45 @@ fun WelcomeScreen(
                                             is GoogleAuthResult.Success -> {
                                                 isSigningIn = false
                                                 val existing = authManager.getRegisteredUser(result.email)
-                                                onGoogleSignIn(
-                                                    result.displayName,
-                                                    result.email,
-                                                    existing?.phone ?: "+91-8442980101",
-                                                    existing?.tower ?: "Sukhobristi Phase 1 - Tower A4",
-                                                    existing?.flatNumber ?: "Flat 803"
-                                                )
+                                                if (existing != null) {
+                                                    onGoogleSignIn(
+                                                        result.displayName.ifBlank { existing.name },
+                                                        result.email,
+                                                        existing.phone,
+                                                        existing.tower,
+                                                        existing.flatNumber
+                                                    )
+                                                } else {
+                                                    prefillEmail = result.email
+                                                    prefillName = result.displayName
+                                                    showResidentLoginDialog = true
+                                                }
                                             }
-                                            is GoogleAuthResult.NeedsFallbackPicker -> {
+                                            is GoogleAuthResult.NeedsFallbackPicker, is GoogleAuthResult.Failure -> {
                                                 isSigningIn = false
-                                                showGoogleAccountChooser = true
+                                                try {
+                                                    val intent = AccountManager.newChooseAccountIntent(
+                                                        null,
+                                                        null,
+                                                        arrayOf("com.google"),
+                                                        null,
+                                                        null,
+                                                        null,
+                                                        null
+                                                    )
+                                                    googleAccountPickerLauncher.launch(intent)
+                                                } catch (e: Exception) {
+                                                    if (registeredUsers.isNotEmpty()) {
+                                                        showGoogleAccountChooser = true
+                                                    } else {
+                                                        prefillEmail = ""
+                                                        prefillName = ""
+                                                        showResidentLoginDialog = true
+                                                    }
+                                                }
                                             }
                                             is GoogleAuthResult.Cancelled -> {
                                                 isSigningIn = false
-                                            }
-                                            is GoogleAuthResult.Failure -> {
-                                                isSigningIn = false
-                                                showGoogleAccountChooser = true
                                             }
                                         }
                                     }
@@ -577,6 +633,8 @@ fun WelcomeScreen(
             },
             onUseAnotherAccount = {
                 showGoogleAccountChooser = false
+                prefillEmail = ""
+                prefillName = ""
                 showResidentLoginDialog = true
             },
             onDismiss = { showGoogleAccountChooser = false }
@@ -587,9 +645,17 @@ fun WelcomeScreen(
     if (showResidentLoginDialog) {
         ResidentGoogleLoginDialog(
             authManager = authManager,
-            onDismiss = { showResidentLoginDialog = false },
+            initialEmail = prefillEmail,
+            initialName = prefillName,
+            onDismiss = {
+                showResidentLoginDialog = false
+                prefillEmail = ""
+                prefillName = ""
+            },
             onLoginComplete = { name, email, phone, tower, flat ->
                 showResidentLoginDialog = false
+                prefillEmail = ""
+                prefillName = ""
                 onGoogleSignIn(name, email, phone, tower, flat)
             }
         )
@@ -943,16 +1009,32 @@ fun GoogleAccountChooserDialog(
 @Composable
 fun ResidentGoogleLoginDialog(
     authManager: AuthManager = AuthManager.getInstance(LocalContext.current),
+    initialEmail: String = "",
+    initialName: String = "",
     onDismiss: () -> Unit,
     onLoginComplete: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit
 ) {
     val registeredUsers = remember { authManager.getAllRegisteredUsers() }
 
-    var email by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(initialEmail) }
+    var name by remember { mutableStateOf(initialName) }
     var phone by remember { mutableStateOf("+91-") }
-    var selectedTower by remember { mutableStateOf("Sukhobristi Phase 1 - Tower A4") }
+    var selectedTower by remember { mutableStateOf("Sukhobristi Phase 1 - Tower A1") }
     var flatNumber by remember { mutableStateOf("") }
+
+    androidx.compose.runtime.LaunchedEffect(initialEmail, initialName) {
+        if (initialEmail.isNotBlank()) {
+            email = initialEmail
+        }
+        if (initialName.isNotBlank()) {
+            name = initialName
+        } else if (initialEmail.contains("@") && name.isBlank()) {
+            name = initialEmail.substringBefore("@")
+                .replace(".", " ")
+                .split(" ")
+                .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+        }
+    }
 
     val existingProfile = remember(email) {
         val trimmed = email.trim().lowercase()
@@ -961,7 +1043,7 @@ fun ResidentGoogleLoginDialog(
         } else null
     }
 
-    // When an existing profile is found, pre-populate if fields are empty
+    // When an existing profile is found, pre-populate
     androidx.compose.runtime.LaunchedEffect(existingProfile) {
         existingProfile?.let { prof ->
             name = prof.name

@@ -139,8 +139,8 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Shapoorji Location Verification State
-    val selectedTower = MutableStateFlow("Sukhobristi Phase 1 - Tower A4")
-    val flatInput = MutableStateFlow("Flat 803, 8th Floor")
+    val selectedTower = MutableStateFlow(authManager.currentUser.value.tower.ifBlank { "Sukhobristi Phase 1 - Tower A1" })
+    val flatInput = MutableStateFlow(authManager.currentUser.value.flatNumber)
     val deliveryNotesInput = MutableStateFlow("Please leave at door / ring bell")
     val currentLatitude = MutableStateFlow(22.5695)
     val currentLongitude = MutableStateFlow(88.5195)

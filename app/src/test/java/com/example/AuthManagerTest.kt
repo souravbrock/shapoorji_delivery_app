@@ -14,6 +14,18 @@ import org.robolectric.RuntimeEnvironment
 class AuthManagerTest {
 
     @Test
+    fun freshInstall_hasNoUserByDefault() {
+        val context = RuntimeEnvironment.getApplication()
+        val authManager = AuthManager.getInstance(context)
+        authManager.signOut()
+
+        val currentUser = authManager.currentUser.value
+        assertFalse(currentUser.isGoogleSignedIn)
+        assertEquals("", currentUser.name)
+        assertEquals("", currentUser.email)
+    }
+
+    @Test
     fun residentRegistration_persistsAfterSignOut() {
         val context = RuntimeEnvironment.getApplication()
         val authManager = AuthManager.getInstance(context)
