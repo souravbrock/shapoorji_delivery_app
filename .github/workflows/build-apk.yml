@@ -18,6 +18,9 @@ jobs:
   build:
     name: Build Test APK
     runs-on: ubuntu-latest
+    env:
+      JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
+      GRADLE_OPTS: "-Djava.awt.headless=true -Dorg.gradle.jvmargs='-Xmx4g -Dfile.encoding=UTF-8 -Djava.awt.headless=true'"
 
     steps:
       - name: Checkout Code
@@ -26,14 +29,14 @@ jobs:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Restore Debug Keystore
         run: |
@@ -54,7 +57,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          gradle :app:assembleDebug --stacktrace
+          gradle :app:assembleDebug -Djava.awt.headless=true --stacktrace
 
       - name: Rename APK for Versioning
         id: rename_apk
