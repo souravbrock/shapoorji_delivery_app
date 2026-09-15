@@ -138,7 +138,7 @@ fun CheckoutScreen(
                             onClick = {
                                 if (!isInsideShapoorji) {
                                     scope.launch {
-                                        snackbarHostState.showSnackbar("❌ Orders are restricted strictly inside Shapoorji! Please select an address within Sukhobristi.")
+                                        snackbarHostState.showSnackbar("❌ Orders are restricted strictly inside Shapoorji! Please select an address within Shukhobrishti.")
                                     }
                                     return@Button
                                 }
@@ -182,7 +182,7 @@ fun CheckoutScreen(
                     if (!isInsideShapoorji) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "⚠️ Delivery outside Shapoorji is disabled. Adjust map pin inside Sukhobristi above.",
+                            text = "⚠️ Delivery outside Shapoorji is disabled. Adjust map pin inside Shukhobrishti above.",
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium

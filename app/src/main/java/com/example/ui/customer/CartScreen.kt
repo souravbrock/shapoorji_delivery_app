@@ -221,7 +221,7 @@ fun CartScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (subtotal >= 199.0)
-                                    "🎉 Free doorstep delivery applied to your Sukhobristi flat!"
+                                    "🎉 Free doorstep delivery applied to your Shukhobrishti flat!"
                                 else
                                     "Add ₹${(199 - subtotal).toInt()} more for FREE doorstep delivery inside Shapoorji!",
                                 fontSize = 12.sp,

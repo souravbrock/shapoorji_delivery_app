@@ -116,7 +116,7 @@ fun ProductReviewDialog(
                         if (it.isNotBlank()) isError = false
                     },
                     label = { Text("Write your review") },
-                    placeholder = { Text("e.g. Very fresh delivery to my flat in Sukhobristi!") },
+                    placeholder = { Text("e.g. Very fresh delivery to my flat in Shukhobrishti!") },
                     isError = isError,
                     supportingText = {
                         if (isError) {

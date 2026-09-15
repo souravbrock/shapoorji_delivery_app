@@ -188,10 +188,6 @@ fun OrderTrackingScreen(
                     }
 
                     item {
-                        EmailAndTelegramLogCard(order = order)
-                    }
-
-                    item {
                         Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
@@ -274,7 +270,7 @@ fun OrderHeaderCard(
                         fontSize = 13.sp
                     )
                     Text(
-                        text = "Shapoorji Sukhobristi • Verified GPS Geofence",
+                        text = "Shapoorji Shukhobrishti • Verified GPS Geofence",
                         fontSize = 11.sp,
                         color = EmeraldGreenDark
                     )
@@ -324,7 +320,7 @@ fun OrderStatusTimelineCard(order: Order) {
 
             TimelineStepRow(
                 title = "Out for Delivery",
-                subtitle = "Delivery partner on scooter inside Sukhobristi heading to your tower.",
+                subtitle = "Delivery partner on scooter inside Shukhobrishti heading to your tower.",
                 isCompleted = currentStep >= 2,
                 isCurrent = currentStep == 2,
                 timestamp = order.outForDeliveryAt?.let { SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(it)) },
@@ -495,36 +491,3 @@ fun OrderItemsBreakdownCard(order: Order) {
     }
 }
 
-@Composable
-fun EmailAndTelegramLogCard(order: Order) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = "Email",
-                    tint = EmeraldGreenDark,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Notification Transparency",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = EmeraldGreenDark
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "✓ Email sent from: order@spdelivery.reddevils.co.in\n✓ Delivered to: ${order.customerEmail} & souravbrock@gmail.com\n✓ Dispatched on status change: ${order.status.label}\n✓ Telegram Bot alerted: Admin, Store Managers, Store Staff",
-                fontSize = 11.sp,
-                color = EmeraldGreenDark.copy(alpha = 0.9f),
-                lineHeight = 16.sp
-            )
-        }
-    }
-}

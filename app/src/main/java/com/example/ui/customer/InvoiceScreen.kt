@@ -97,7 +97,7 @@ fun InvoiceScreen(
             appendLine("Phone        : ${order.customerPhone}")
             appendLine("Tower        : ${order.towerName}")
             appendLine("Flat         : ${order.flatNumber}")
-            appendLine("Geofence     : Verified Inside Shapoorji Sukhobristi")
+            appendLine("Geofence     : Verified Inside Shapoorji Shukhobrishti")
             appendLine("--------------------------------------------------")
             appendLine("ITEMIZED GROCERY DETAILS:")
             items.forEachIndexed { i, itm ->
@@ -247,7 +247,7 @@ fun InvoiceScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Sukhobristi Commercial Plaza, AA-III",
+                                text = "Shukhobrishti Commercial Plaza, AA-III",
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
@@ -331,7 +331,7 @@ fun InvoiceScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                                 Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Verified", tint = EmeraldGreenPrimary, modifier = Modifier.size(12.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Verified Shapoorji Sukhobristi Resident", fontSize = 11.sp, color = EmeraldGreenDark, fontWeight = FontWeight.Medium)
+                                Text("Verified Shapoorji Shukhobrishti Resident", fontSize = 11.sp, color = EmeraldGreenDark, fontWeight = FontWeight.Medium)
                             }
                         }
                     }

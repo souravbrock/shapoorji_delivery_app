@@ -77,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
             val sampleReviews = listOf(
                 Review(productId = 1, customerName = "Priya Sen", customerEmail = "priya.sen@gmail.com", rating = 5, comment = "Chandramukhi potatoes delivered to Tower A4 in 18 minutes! Super creamy and fresh."),
                 Review(productId = 2, customerName = "Amitabh Guha", customerEmail = "amitabh.g@gmail.com", rating = 5, comment = "Himalini potatoes are clean and high quality. Perfect mandi price."),
-                Review(productId = 4, customerName = "Sourav Brock", customerEmail = "souravbrock@gmail.com", rating = 5, comment = "Crisp pink onions at ₹60/kg delivered to doorstep. Best grocery service in Sukhobristi!"),
+                Review(productId = 4, customerName = "Sourav Brock", customerEmail = "souravbrock@gmail.com", rating = 5, comment = "Crisp pink onions at ₹60/kg delivered to doorstep. Best grocery service in Shukhobrishti!"),
                 Review(productId = 22, customerName = "Debashis M", customerEmail = "debashis@gmail.com", rating = 5, comment = "Spinach bunch was crisp, green and dirt-free. Delivered fresh early morning.")
             )
             sampleReviews.forEach { reviewDao.insertReview(it) }

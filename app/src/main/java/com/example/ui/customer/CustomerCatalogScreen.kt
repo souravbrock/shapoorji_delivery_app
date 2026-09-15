@@ -218,7 +218,7 @@ fun CustomerCatalogScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = selectedTower.replace("Sukhobristi ", ""),
+                            text = selectedTower.replace("Shukhobrishti ", "").replace("Sukhobristi ", ""),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
@@ -352,7 +352,7 @@ fun CustomerCatalogScreen(
                                 color = EmeraldGreenDark
                             )
                             Text(
-                                text = "Fresh morning rates updated daily for Sukhobristi residents",
+                                text = "Fresh morning rates updated daily for Shukhobrishti residents",
                                 fontSize = 10.sp,
                                 color = EmeraldGreenDark.copy(alpha = 0.8f)
                             )

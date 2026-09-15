@@ -35,10 +35,7 @@ class GroceryRepository(
     val allProducts: Flow<List<Product>> = productDao.getAllProducts()
 
     suspend fun syncOfficialCatalog() {
-        val count = productDao.getProductCount()
-        if (count == 0 || count < OfficialCatalog.INITIAL_PRODUCTS.size) {
-            productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
-        }
+        productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
     }
 
     suspend fun resetToOfficialCatalog() {

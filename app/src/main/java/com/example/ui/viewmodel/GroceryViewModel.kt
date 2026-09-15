@@ -17,6 +17,8 @@ import com.example.data.notification.NotificationDispatcher
 import com.example.data.notification.SmtpResult
 import com.example.data.notification.TelegramDispatchReport
 import com.example.data.repository.GroceryRepository
+import com.example.data.update.AppUpdateManager
+import com.example.data.update.UpdateStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +31,9 @@ import kotlinx.coroutines.launch
 class GroceryViewModel(application: Application) : AndroidViewModel(application) {
 
     val authManager = AuthManager.getInstance(application)
+    val appUpdateManager = AppUpdateManager(application)
+    val updateStatus: StateFlow<UpdateStatus> = appUpdateManager.updateStatus
+    val showUpdateDialog = MutableStateFlow(false)
     private val database = AppDatabase.getDatabase(application, viewModelScope)
     private val dispatcher = NotificationDispatcher(application, database.notificationLogDao())
     val repository = GroceryRepository(
@@ -139,13 +144,13 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Shapoorji Location Verification State
-    val selectedTower = MutableStateFlow(authManager.currentUser.value.tower.ifBlank { "Sukhobristi Phase 1 - Tower A1" })
+    val selectedTower = MutableStateFlow(authManager.currentUser.value.tower.ifBlank { "Shukhobrishti Phase 1 - Tower A1" })
     val flatInput = MutableStateFlow(authManager.currentUser.value.flatNumber)
     val deliveryNotesInput = MutableStateFlow("Please leave at door / ring bell")
     val currentLatitude = MutableStateFlow(22.5695)
     val currentLongitude = MutableStateFlow(88.5195)
     val isLocationInsideShapoorji = MutableStateFlow(true)
-    val locationVerificationMessage = MutableStateFlow("✓ Verified: Inside Shapoorji Sukhobristi Delivery Zone")
+    val locationVerificationMessage = MutableStateFlow("✓ Verified: Inside Shapoorji Shukhobrishti Delivery Zone")
 
     // UI Feedback
     val toastMessage = MutableStateFlow<String?>(null)
@@ -290,9 +295,9 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         isLocationInsideShapoorji.value = inside
         if (inside) {
             val dist = ShapoorjiGeo.distanceInMeters(lat, lng, ShapoorjiGeo.CENTER_LATITUDE, ShapoorjiGeo.CENTER_LONGITUDE).toInt()
-            locationVerificationMessage.value = "✓ Verified Inside Shapoorji (Offset: ${dist}m from Sukhobristi center)"
+            locationVerificationMessage.value = "✓ Verified Inside Shapoorji (Offset: ${dist}m from Shukhobrishti center)"
         } else {
-            locationVerificationMessage.value = "❌ Outside Delivery Zone! Shapoorji Delivery only serves within Shapoorji Sukhobristi."
+            locationVerificationMessage.value = "❌ Outside Delivery Zone! Shapoorji Delivery only serves within Shapoorji Shukhobrishti."
         }
     }
 
@@ -308,7 +313,7 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     // Order Placement
     fun placeOrder(onSuccess: (Order) -> Unit, onError: (String) -> Unit) {
         if (!isLocationInsideShapoorji.value) {
-            onError("Orders cannot be placed outside Shapoorji! Please verify your location inside Shapoorji Sukhobristi.")
+            onError("Orders cannot be placed outside Shapoorji! Please verify your location inside Shapoorji Shukhobrishti.")
             return
         }
 
@@ -584,5 +589,23 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
                 isTestingEmail.value = false
             }
         }
+    }
+
+    // App Update & Upgrade Engine
+    fun checkForAppUpdates() {
+        showUpdateDialog.value = true
+        viewModelScope.launch {
+            appUpdateManager.checkForUpdates(forcedCheck = true)
+        }
+    }
+
+    fun simulateUpgradeAvailable() {
+        showUpdateDialog.value = true
+        appUpdateManager.simulateUpdateAvailable()
+    }
+
+    fun dismissUpdateDialog() {
+        showUpdateDialog.value = false
+        appUpdateManager.dismissUpdate()
     }
 }

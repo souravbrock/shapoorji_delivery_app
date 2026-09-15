@@ -6,30 +6,30 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 object ShapoorjiGeo {
-    // Center point of Shapoorji Sukhobristi / Pallonji Township in New Town Action Area III, Kolkata
+    // Center point of Shapoorji Shukhobrishti / Pallonji Township in New Town Action Area III, Kolkata
     const val CENTER_LATITUDE = 22.5695
     const val CENTER_LONGITUDE = 88.5195
     const val MAX_RADIUS_METERS = 1800.0 // 1.8 km covers all Phases, Towers and Spacio inside Shapoorji
 
     val TOWERS = listOf(
-        "Sukhobristi Phase 1 - Tower A1",
-        "Sukhobristi Phase 1 - Tower A2",
-        "Sukhobristi Phase 1 - Tower A3",
-        "Sukhobristi Phase 1 - Tower A4",
-        "Sukhobristi Phase 1 - Tower A8",
-        "Sukhobristi Phase 1 - Tower B2",
-        "Sukhobristi Phase 1 - Tower B14",
-        "Sukhobristi Phase 1 - Tower B22",
-        "Sukhobristi Phase 1 - Tower C5",
-        "Sukhobristi Phase 1 - Tower C18",
-        "Sukhobristi Phase 2 - Tower D4",
-        "Sukhobristi Phase 2 - Tower D11",
-        "Sukhobristi Phase 2 - Tower E6",
-        "Sukhobristi Phase 2 - Tower E19",
-        "Sukhobristi Phase 2 - Tower F3",
+        "Shukhobrishti Phase 1 - Tower A1",
+        "Shukhobrishti Phase 1 - Tower A2",
+        "Shukhobrishti Phase 1 - Tower A3",
+        "Shukhobrishti Phase 1 - Tower A4",
+        "Shukhobrishti Phase 1 - Tower A8",
+        "Shukhobrishti Phase 1 - Tower B2",
+        "Shukhobrishti Phase 1 - Tower B14",
+        "Shukhobrishti Phase 1 - Tower B22",
+        "Shukhobrishti Phase 1 - Tower C5",
+        "Shukhobrishti Phase 1 - Tower C18",
+        "Shukhobrishti Phase 2 - Tower D4",
+        "Shukhobrishti Phase 2 - Tower D11",
+        "Shukhobrishti Phase 2 - Tower E6",
+        "Shukhobrishti Phase 2 - Tower E19",
+        "Shukhobrishti Phase 2 - Tower F3",
         "Spacio at Shapoorji - Tower 2",
         "Spacio at Shapoorji - Tower 5",
-        "Shapoorji Sukhobristi Club House Area",
+        "Shapoorji Shukhobrishti Club House Area",
         "Shapoorji Commercial Complex / Main Gate"
     )
 
@@ -50,7 +50,7 @@ object ShapoorjiGeo {
     }
 
     /**
-     * Returns true if coordinates lie strictly within Shapoorji Sukhobristi delivery zone
+     * Returns true if coordinates lie strictly within Shapoorji Shukhobrishti delivery zone
      */
     fun isInsideShapoorji(lat: Double, lon: Double): Boolean {
         return distanceInMeters(lat, lon, CENTER_LATITUDE, CENTER_LONGITUDE) <= MAX_RADIUS_METERS

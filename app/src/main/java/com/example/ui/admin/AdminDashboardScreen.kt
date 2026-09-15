@@ -34,8 +34,10 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -56,7 +58,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Scaffold
+import com.example.BuildConfig
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -113,7 +117,7 @@ fun AdminDashboardScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Orders", "Daily Prices", "Products", "Notifications")
+    val tabs = listOf("Orders", "Daily Prices", "Products", "Notifications", "System & Updates")
 
     val orders by viewModel.allOrders.collectAsState()
     val products by viewModel.allProducts.collectAsState()
@@ -150,6 +154,15 @@ fun AdminDashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.checkForAppUpdates() }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = "Check for Updates",
+                            tint = EmeraldGreenDark
+                        )
+                    }
                     OutlinedButton(
                         onClick = onNavigateBackToCustomer,
                         shape = RoundedCornerShape(10.dp)
@@ -204,9 +217,10 @@ fun AdminDashboardScreen(
             }
 
             // Tab Row
-            PrimaryTabRow(
+            ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                edgePadding = 12.dp
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -252,6 +266,9 @@ fun AdminDashboardScreen(
                             )
                         }
                     }
+                )
+                4 -> AdminSystemUpdatesTab(
+                    viewModel = viewModel
                 )
             }
         }
@@ -1824,4 +1841,215 @@ fun EditProductDialog(
             }
         }
     )
+}
+
+@Composable
+fun AdminSystemUpdatesTab(
+    viewModel: GroceryViewModel,
+    modifier: Modifier = Modifier
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val canInstall = viewModel.appUpdateManager.canRequestPackageInstalls()
+    val updateStatus by viewModel.updateStatus.collectAsState()
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Current Version Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = EmeraldContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldGreenDark),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Shapoorji Delivery v${BuildConfig.VERSION_NAME}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = EmeraldGreenDark
+                                )
+                                Text(
+                                    text = "Internal Build: ${BuildConfig.VERSION_CODE} • Target SDK: 36",
+                                    fontSize = 12.sp,
+                                    color = EmeraldGreenDark.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(EmeraldGreenDark)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "ACTIVE",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = EmeraldGreenDark.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "App ID: com.aistudio.shapoorjidelivery.grocer",
+                        fontSize = 11.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = EmeraldGreenDark
+                    )
+                }
+            }
+        }
+
+        // In-Place Upgrade Compatibility Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = EmeraldGreenPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Seamless Upgrade Guarantee",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val points = listOf(
+                        "✓ In-Place Installation: Direct APK upgrade without uninstalling previous version",
+                        "✓ Zero Data Loss: User login sessions, active cart, and delivery addresses are preserved",
+                        "✓ Package Identity: com.aistudio.shapoorjidelivery.grocer remains permanent",
+                        "✓ Key Signature Match: Consistent signing key maintains Android OS package validation",
+                        "✓ Room Database Migration: Retains customer orders and product catalog safely"
+                    )
+
+                    points.forEach { point ->
+                        Text(
+                            text = point,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Action Controls
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Update Controls & Testing",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+
+                    Button(
+                        onClick = { viewModel.checkForAppUpdates() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
+                    ) {
+                        Icon(imageVector = Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Check for Official Updates")
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.simulateUpgradeAvailable() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Test In-Place Upgrade Dialog Flow")
+                    }
+
+                    // Package Install permission status
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (canInstall) Color(0xFFE8F5E9) else Color(0xFFFFF3E0))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (canInstall) "Direct Package Install Allowed" else "Install Permission Needed",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = if (canInstall) EmeraldGreenDark else Color(0xFFE65100)
+                            )
+                            Text(
+                                text = if (canInstall) "Android OS allows this app to trigger updates" else "Tap to allow app update installation in Settings",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (!canInstall) {
+                            OutlinedButton(
+                                onClick = { viewModel.appUpdateManager.openInstallPermissionSettings(context) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Settings", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

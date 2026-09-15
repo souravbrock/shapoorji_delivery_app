@@ -35,7 +35,7 @@ class AuthManagerTest {
             name = "Anirban Sen",
             email = "anirban.sen@gmail.com",
             phone = "+91-9830099999",
-            tower = "Sukhobristi Phase 1 - Tower A3",
+            tower = "Shukhobrishti Phase 1 - Tower A3",
             flat = "Flat 502, 5th Floor"
         )
 
@@ -59,7 +59,7 @@ class AuthManagerTest {
         assertNotNull(cachedUser)
         assertEquals("Anirban Sen", cachedUser?.name)
         assertEquals("Flat 502, 5th Floor", cachedUser?.flatNumber)
-        assertEquals("Sukhobristi Phase 1 - Tower A3", cachedUser?.tower)
+        assertEquals("Shukhobrishti Phase 1 - Tower A3", cachedUser?.tower)
 
         // 3. User logs back in (via quickSignIn / Google account chooser)
         val reLoggedInUser = authManager.quickSignIn("anirban.sen@gmail.com")
@@ -67,7 +67,7 @@ class AuthManagerTest {
         assertTrue(reLoggedInUser!!.isGoogleSignedIn)
         assertEquals("Anirban Sen", reLoggedInUser.name)
         assertEquals("Flat 502, 5th Floor", reLoggedInUser.flatNumber)
-        assertEquals("Sukhobristi Phase 1 - Tower A3", reLoggedInUser.tower)
+        assertEquals("Shukhobrishti Phase 1 - Tower A3", reLoggedInUser.tower)
     }
 
     @Test
@@ -79,7 +79,7 @@ class AuthManagerTest {
             name = "Sourav Brock",
             email = "souravbrock@gmail.com",
             phone = "+91-8442980101",
-            tower = "Sukhobristi Phase 1 - Tower A4",
+            tower = "Shukhobrishti Phase 1 - Tower A4",
             flat = "Flat 803"
         )
 

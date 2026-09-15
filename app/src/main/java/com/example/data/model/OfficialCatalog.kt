@@ -44,7 +44,7 @@ object OfficialCatalog {
             mrp = 340.0,
             stockQty = 60,
             description = "Freshly unsoiled aromatic ginger with spicy gingerol punch, essential for morning tea and rich gravies.",
-            imageUrl = "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=400",
+            imageUrl = "file:///android_asset/products/ginger.jpg",
             isDailyEssential = true,
             averageRating = 4.9f,
             reviewCount = 42
@@ -142,7 +142,7 @@ object OfficialCatalog {
             mrp = 70.0,
             stockQty = 65,
             description = "Tender, clean taro root (maan kochu / arbi), velvety and delicious when stewed with mustard paste.",
-            imageUrl = "https://images.unsplash.com/photo-1596797882870-8c33deeac224?w=400",
+            imageUrl = "file:///android_asset/products/taro_root.jpg",
             isDailyEssential = false,
             averageRating = 4.6f,
             reviewCount = 15
@@ -156,7 +156,7 @@ object OfficialCatalog {
             mrp = 200.0,
             stockQty = 50,
             description = "Naturally sweet, fiber-rich purple-skinned sweet potato (shakarkand / mishti alu).",
-            imageUrl = "https://images.unsplash.com/photo-1596097635121-14b63b7a0c19?w=400",
+            imageUrl = "file:///android_asset/products/sweet_potato.jpg",
             isDailyEssential = false,
             averageRating = 4.7f,
             reviewCount = 18
@@ -170,7 +170,7 @@ object OfficialCatalog {
             mrp = 75.0,
             stockQty = 55,
             description = "Fresh cut Bengali ol / jimikand yam, non-itchy quality, perfect for steamed ol bhate and spicy gravies.",
-            imageUrl = "https://images.unsplash.com/photo-1587132137056-bfbf0166836e?w=400",
+            imageUrl = "file:///android_asset/products/elephant_yam.jpg",
             isDailyEssential = false,
             averageRating = 4.7f,
             reviewCount = 14
@@ -184,7 +184,7 @@ object OfficialCatalog {
             mrp = 95.0,
             stockQty = 85,
             description = "Glossy purple fresh eggplant (begun) with tender green calyx, ideal for begun bhaja and bharta.",
-            imageUrl = "https://images.unsplash.com/photo-1628773822503-930a84d47c4b?w=400",
+            imageUrl = "file:///android_asset/products/eggplant.jpg",
             isDailyEssential = true,
             averageRating = 4.8f,
             reviewCount = 33
@@ -198,7 +198,7 @@ object OfficialCatalog {
             mrp = 60.0,
             stockQty = 70,
             description = "Fresh green raw papaya, rich in digestive enzymes, traditional for Bengali shukto and stews.",
-            imageUrl = "https://images.unsplash.com/photo-1617112848923-cc2234396a8d?w=400",
+            imageUrl = "file:///android_asset/products/raw_papaya.jpg",
             isDailyEssential = false,
             averageRating = 4.6f,
             reviewCount = 16
@@ -212,7 +212,7 @@ object OfficialCatalog {
             mrp = 40.0,
             stockQty = 90,
             description = "Rich golden yellow sweet pumpkin cut, tender seeds, great for kumror chokka and roasted curries.",
-            imageUrl = "https://images.unsplash.com/photo-1570586437503-903009b33cb7?w=400",
+            imageUrl = "file:///android_asset/products/pumpkin.jpg",
             isDailyEssential = true,
             averageRating = 4.8f,
             reviewCount = 29
@@ -226,7 +226,7 @@ object OfficialCatalog {
             mrp = 75.0,
             stockQty = 50,
             description = "Seasonal fresh prickly kakrol / kantola, crisp and exquisite for spicy pan fry with mustard.",
-            imageUrl = "https://images.unsplash.com/photo-1587334274328-64186a80aeee?w=400",
+            imageUrl = "file:///android_asset/products/teasel_gourd.jpg",
             isDailyEssential = false,
             averageRating = 4.7f,
             reviewCount = 20
@@ -240,7 +240,7 @@ object OfficialCatalog {
             mrp = 50.0,
             stockQty = 75,
             description = "Tender, juicy and sweet fresh bottle gourd (lau / lauki), lightweight and soothing for digestion.",
-            imageUrl = "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=400",
+            imageUrl = "file:///android_asset/products/bottle_gourd.jpg",
             isDailyEssential = true,
             averageRating = 4.9f,
             reviewCount = 37
@@ -268,7 +268,7 @@ object OfficialCatalog {
             mrp = 85.0,
             stockQty = 65,
             description = "Freshly harvested sharp-ridged jhinge / torai, essential for authentic jhinge-aloo posto.",
-            imageUrl = "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400",
+            imageUrl = "file:///android_asset/products/ridge_gourd.jpg",
             isDailyEssential = true,
             averageRating = 4.8f,
             reviewCount = 26
@@ -296,7 +296,7 @@ object OfficialCatalog {
             mrp = 75.0,
             stockQty = 70,
             description = "Dark green crisp bitter gourd (uchhe / korola), celebrated for health, blood sugar and crisp fry.",
-            imageUrl = "https://images.unsplash.com/photo-1587334274328-64186a80aeee?w=400",
+            imageUrl = "file:///android_asset/products/bitter_gourd.jpg",
             isDailyEssential = true,
             averageRating = 4.7f,
             reviewCount = 23
@@ -366,7 +366,7 @@ object OfficialCatalog {
             mrp = 290.0,
             stockQty = 45,
             description = "Tangy, tart and crisp Granny Smith green apples, ideal for detox juices, fruit bowls and baking.",
-            imageUrl = "https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?w=400",
+            imageUrl = "file:///android_asset/products/green_apple.jpg",
             isDailyEssential = false,
             averageRating = 4.7f,
             reviewCount = 27
@@ -380,7 +380,7 @@ object OfficialCatalog {
             mrp = 260.0,
             stockQty = 70,
             description = "Deep ruby red Bhagwa pomegranate arils brimming with antioxidants and sweet juice.",
-            imageUrl = "https://images.unsplash.com/photo-1541344999736-83eca872f241?w=400",
+            imageUrl = "file:///android_asset/products/pomegranate.jpg",
             isDailyEssential = true,
             averageRating = 4.9f,
             reviewCount = 44
@@ -408,7 +408,7 @@ object OfficialCatalog {
             mrp = 80.0,
             stockQty = 100,
             description = "Fresh green tender coconut with 350-450 ml naturally chilled electrolyte-rich water and soft malai.",
-            imageUrl = "https://images.unsplash.com/photo-1544376798-89aa6b82c6cd?w=400",
+            imageUrl = "file:///android_asset/products/tender_coconut.jpg",
             isDailyEssential = true,
             averageRating = 4.9f,
             reviewCount = 68
@@ -520,7 +520,7 @@ object OfficialCatalog {
             mrp = 85.0,
             stockQty = 75,
             description = "Crisp, fragrant white-fleshed fresh Allahabad safeda guava, delicious with black salt.",
-            imageUrl = "https://images.unsplash.com/photo-1536511135899-703a9fba753b?w=400",
+            imageUrl = "file:///android_asset/products/guava.jpg",
             isDailyEssential = true,
             averageRating = 4.8f,
             reviewCount = 37

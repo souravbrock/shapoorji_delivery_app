@@ -46,7 +46,7 @@ data class Order(
     val customerName: String,
     val customerEmail: String,
     val customerPhone: String,
-    val towerName: String, // e.g., "Tower A8", "Sukhobristi Phase 1 - Tower B14"
+    val towerName: String, // e.g., "Tower A8", "Shukhobrishti Phase 1 - Tower B14"
     val flatNumber: String, // e.g., "Flat 402, 4th Floor"
     val deliveryNotes: String = "",
     val latitude: Double = 22.5695,

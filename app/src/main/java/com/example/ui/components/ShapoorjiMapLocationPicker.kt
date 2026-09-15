@@ -107,6 +107,28 @@ fun ShapoorjiMapLocationPicker(
         }
     }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val hasFine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasFine || hasCoarse) {
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        onCoordinatesChange(loc.latitude, loc.longitude)
+                    }
+                }
+            } catch (e: SecurityException) {
+                // Ignore
+            }
+        }
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -209,7 +231,7 @@ fun ShapoorjiMapLocationPicker(
                     val center = Offset(size.width / 2f, size.height / 2f)
                     val geofenceRadius = size.height * 0.42f
 
-                    // Draw geofence boundary (Shapoorji Sukhobristi Boundary)
+                    // Draw geofence boundary (Shapoorji Shukhobrishti Boundary)
                     drawCircle(
                         color = Color(0x334CAF50),
                         radius = geofenceRadius,
@@ -261,7 +283,7 @@ fun ShapoorjiMapLocationPicker(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Shapoorji Sukhobristi Township (AA-III)",
+                        text = "Shapoorji Shukhobrishti Township (AA-III)",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = EmeraldGreenDark
@@ -314,9 +336,9 @@ fun ShapoorjiMapLocationPicker(
                         )
                         Text(
                             text = if (isInsideShapoorji)
-                                "Your pin is verified within Sukhobristi geofence. Doorstep delivery is active."
+                                "Your pin is verified within Shukhobrishti geofence. Doorstep delivery is active."
                             else
-                                "Shapoorji Delivery operates exclusively inside Shapoorji Sukhobristi. Orders outside cannot be placed.",
+                                "Shapoorji Delivery operates exclusively inside Shapoorji Shukhobrishti. Orders outside cannot be placed.",
                             fontSize = 11.sp,
                             color = contentColor.copy(alpha = 0.85f)
                         )
@@ -324,33 +346,34 @@ fun ShapoorjiMapLocationPicker(
                 }
             }
 
+            // Real address helper for customer
             Spacer(modifier = Modifier.height(10.dp))
-
-            // Location Simulation / Quick Pin Buttons
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedButton(
-                    onClick = { onCoordinatesChange(22.5695, 88.5195) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = EmeraldGreenPrimary
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "Address",
+                    tint = EmeraldGreenPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "Shukhobrishti Township, Action Area III",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
-                ) {
-                    Text("Pin: Inside Shapoorji", fontSize = 11.sp)
-                }
-
-                OutlinedButton(
-                    onClick = { onCoordinatesChange(22.5868, 88.4355) }, // Sector V Kolkata
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = CoralRed
+                    Text(
+                        text = "New Town, Rajarhat, Kolkata 700135",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                ) {
-                    Text("Simulate: Outside Zone", fontSize = 11.sp)
                 }
             }
 

@@ -24,7 +24,7 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify shapoorji geofence validation`() {
-    // Inside Sukhobristi center
+    // Inside Shukhobrishti center
     assertTrue(ShapoorjiGeo.isInsideShapoorji(22.5695, 88.5195))
 
     // Outside: Sector V Salt Lake

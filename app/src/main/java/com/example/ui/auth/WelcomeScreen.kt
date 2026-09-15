@@ -200,7 +200,7 @@ fun WelcomeScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Shapoorji Sukhobristi",
+                    text = "Shapoorji Shukhobrishti",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Black,
                         color = Color.White
@@ -301,7 +301,7 @@ fun WelcomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Welcome to Sukhobristi Grocery",
+                                text = "Welcome to Shukhobrishti Grocery",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1019,7 +1019,7 @@ fun ResidentGoogleLoginDialog(
     var email by remember { mutableStateOf(initialEmail) }
     var name by remember { mutableStateOf(initialName) }
     var phone by remember { mutableStateOf("+91-") }
-    var selectedTower by remember { mutableStateOf("Sukhobristi Phase 1 - Tower A1") }
+    var selectedTower by remember { mutableStateOf("Shukhobrishti Phase 1 - Tower A1") }
     var flatNumber by remember { mutableStateOf("") }
 
     androidx.compose.runtime.LaunchedEffect(initialEmail, initialName) {
@@ -1213,7 +1213,7 @@ fun ResidentGoogleLoginDialog(
                     value = selectedTower,
                     onValueChange = { selectedTower = it },
                     label = { Text("Shapoorji Tower Name *") },
-                    placeholder = { Text("e.g. Sukhobristi Phase 1 - Tower A4") },
+                    placeholder = { Text("e.g. Shukhobrishti Phase 1 - Tower A4") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
@@ -1236,7 +1236,7 @@ fun ResidentGoogleLoginDialog(
                     val finalEmail = email.trim()
                     val finalName = if (name.isNotBlank()) name.trim() else finalEmail.substringBefore("@").replace(".", " ").capitalize()
                     val finalPhone = if (phone.length > 5) phone.trim() else "+91-8442980101"
-                    val finalTower = if (selectedTower.isNotBlank()) selectedTower.trim() else "Sukhobristi Phase 1 - Tower A4"
+                    val finalTower = if (selectedTower.isNotBlank()) selectedTower.trim() else "Shukhobrishti Phase 1 - Tower A4"
                     val finalFlat = if (flatNumber.isNotBlank()) flatNumber.trim() else "Flat 803"
 
                     onLoginComplete(finalName, finalEmail, finalPhone, finalTower, finalFlat)

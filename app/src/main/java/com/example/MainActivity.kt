@@ -23,6 +23,7 @@ import com.example.data.model.Order
 import com.example.ui.admin.AdminDashboardScreen
 import com.example.ui.auth.AdminAuthGuard
 import com.example.ui.auth.WelcomeScreen
+import com.example.ui.components.AppUpdateDialog
 import com.example.ui.components.GoogleAccountDialog
 import com.example.ui.customer.CartScreen
 import com.example.ui.customer.CheckoutScreen
@@ -69,6 +70,8 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
     val user by viewModel.currentUser.collectAsState()
     val isAdminMode by viewModel.isAdminMode.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
+    val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
+    val updateStatus by viewModel.updateStatus.collectAsState()
 
     var showGoogleAccountDialog by remember { mutableStateOf(false) }
 
@@ -207,7 +210,27 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
                 viewModel.signOut()
                 backstack = listOf(AppScreen.Catalog)
                 showGoogleAccountDialog = false
+            },
+            onCheckForUpdates = {
+                showGoogleAccountDialog = false
+                viewModel.checkForAppUpdates()
             }
+        )
+    }
+
+    // App In-Place Update & Upgrade Dialog
+    if (showUpdateDialog) {
+        AppUpdateDialog(
+            status = updateStatus,
+            onDismiss = { viewModel.dismissUpdateDialog() },
+            onCheckForUpdates = { viewModel.checkForAppUpdates() },
+            onInstallUpdate = {
+                Toast.makeText(context, "Initiating in-place upgrade package installer...", Toast.LENGTH_SHORT).show()
+            },
+            onRequestInstallPermission = {
+                viewModel.appUpdateManager.openInstallPermissionSettings(context)
+            },
+            canInstallPackages = viewModel.appUpdateManager.canRequestPackageInstalls()
         )
     }
 }

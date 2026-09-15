@@ -186,10 +186,7 @@ class ProductCatalogRepository(
      * Sync official catalog if database is empty or outdated.
      */
     suspend fun syncOfficialCatalog() = withContext(dispatcher) {
-        val count = productDao.getProductCount()
-        if (count < OfficialCatalog.INITIAL_PRODUCTS.size) {
-            productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
-        }
+        productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
     }
 
     /**

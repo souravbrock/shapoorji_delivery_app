@@ -24,7 +24,7 @@ class GreetingScreenshotTest {
   fun greeting_screenshot() {
     composeTestRule.setContent {
       MyApplicationTheme {
-        Text("Shapoorji Delivery - Fresh Groceries at Sukhobristi")
+        Text("Shapoorji Delivery - Fresh Groceries at Shukhobrishti")
       }
     }
 

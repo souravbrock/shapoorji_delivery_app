@@ -101,7 +101,7 @@ class AuthManager(private val context: Context) {
                             name = name,
                             email = email,
                             phone = existing?.phone ?: prefs.getString(KEY_USER_PHONE, "") ?: "",
-                            tower = existing?.tower ?: prefs.getString(KEY_USER_TOWER, "Sukhobristi Phase 1 - Tower A1") ?: "Sukhobristi Phase 1 - Tower A1",
+                            tower = existing?.tower ?: prefs.getString(KEY_USER_TOWER, "Shukhobrishti Phase 1 - Tower A1") ?: "Shukhobrishti Phase 1 - Tower A1",
                             flat = existing?.flatNumber ?: prefs.getString(KEY_USER_FLAT, "") ?: "",
                             photoUrl = photoUrl
                         )
@@ -158,7 +158,7 @@ class AuthManager(private val context: Context) {
         val savedName = prefs.getString(nameKey, null) ?: return null
 
         val phone = prefs.getString("user_${cleanEmail}_phone", "") ?: ""
-        val tower = prefs.getString("user_${cleanEmail}_tower", "Sukhobristi Phase 1 - Tower A1") ?: "Sukhobristi Phase 1 - Tower A1"
+        val tower = prefs.getString("user_${cleanEmail}_tower", "Shukhobrishti Phase 1 - Tower A1") ?: "Shukhobrishti Phase 1 - Tower A1"
         val flat = prefs.getString("user_${cleanEmail}_flat", "") ?: ""
         val photo = prefs.getString("user_${cleanEmail}_photo", "") ?: ""
 
@@ -267,7 +267,7 @@ class AuthManager(private val context: Context) {
                 .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
         }
         val cleanPhone = phone.trim()
-        val cleanTower = tower.trim().ifBlank { "Sukhobristi Phase 1 - Tower A1" }
+        val cleanTower = tower.trim().ifBlank { "Shukhobrishti Phase 1 - Tower A1" }
         val cleanFlat = flat.trim()
 
         val profile = UserProfile(

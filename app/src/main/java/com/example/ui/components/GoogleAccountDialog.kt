@@ -42,8 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.data.model.UserProfile
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
@@ -54,7 +56,8 @@ fun GoogleAccountDialog(
     currentUser: UserProfile,
     onDismiss: () -> Unit,
     onSaveProfile: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onCheckForUpdates: (() -> Unit)? = null
 ) {
     var email by remember { mutableStateOf(currentUser.email) }
     var name by remember { mutableStateOf(currentUser.name) }
@@ -128,7 +131,7 @@ fun GoogleAccountDialog(
                             text = if (isAdminEmail) {
                                 "Store Administrator account: souravbrock@gmail.com"
                             } else {
-                                "Resident Account: Orders will be delivered to your verified Sukhobristi flat."
+                                "Resident Account: Orders will be delivered to your verified Shukhobrishti flat."
                             },
                             fontSize = 11.sp,
                             color = if (isAdminEmail) Color(0xFFBF360C) else EmeraldGreenDark,
@@ -174,7 +177,7 @@ fun GoogleAccountDialog(
                     value = tower,
                     onValueChange = { tower = it },
                     label = { Text("Tower / Building (Shapoorji)") },
-                    placeholder = { Text("Sukhobristi Phase 1 - Tower A4") },
+                    placeholder = { Text("Shukhobrishti Phase 1 - Tower A4") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 )
@@ -187,6 +190,54 @@ fun GoogleAccountDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 )
+
+                // App Version & Update Status
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "Version",
+                                    tint = EmeraldGreenPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Version v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "Seamless in-place updates supported (No uninstall required)",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (onCheckForUpdates != null) {
+                            OutlinedButton(
+                                onClick = onCheckForUpdates,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(start = 6.dp)
+                            ) {
+                                Text("Check Updates", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
 
                 Text(
                     text = "Order confirmation emails and status updates will be dispatched from order@spdelivery.reddevils.co.in to this address and souravbrock@gmail.com.",
