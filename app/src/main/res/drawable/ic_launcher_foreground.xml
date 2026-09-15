@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Grocery Shopping Bag Body -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M34,42 L74,42 L70,80 C69.7,82.2 67.8,84 65.5,84 L42.5,84 C40.2,84 38.3,82.2 38,80 L34,42 Z" />
+        <!-- Bag Handle -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFC107"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:pathData="M45,42 C45,34 63,34 63,42" />
+        <!-- Fresh Produce Leaf Accents Emerging from Bag -->
+        <path
+            android:fillColor="#4CAF50"
+            android:pathData="M49,38 C49,30 56,26 56,26 C56,26 57,33 53,37 C51.8,38 50.4,38.3 49,38 Z" />
+        <path
+            android:fillColor="#8BC34A"
+            android:pathData="M59,40 C62,32 68,30 68,30 C68,30 67,36 63,39 C61.8,40 60.4,40.1 59,40 Z" />
+        <!-- Bag Fold & Shadow -->
+        <path
+            android:fillColor="#E0E0E0"
+            android:pathData="M34,42 L74,42 L72.5,47 L35.5,47 Z" />
+        <!-- Fast Delivery Lightning / Speed Swoosh -->
+        <path
+            android:fillColor="#FF9800"
+            android:pathData="M56,50 L47,63 L53,63 L51,75 L61,61 L55,61 Z" />
+    </group>
+</vector>

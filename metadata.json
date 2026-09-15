@@ -1,0 +1,6 @@
+{
+  "name": "Shapoorji Delivery",
+  "description": "Grocery delivery app serving inside Shapoorji with customer catalog, Google sign-in, location verification, order tracking, invoice download, reviews, and admin dashboard with price updates and email/Telegram notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
