@@ -25,6 +25,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeliveryDining
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.AlertDialog
@@ -70,9 +74,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.data.auth.AuthManager
 import com.example.data.auth.FirebaseAuthService
 import com.example.data.auth.GoogleAuthResult
 import com.example.data.model.OfficialCatalog
+import com.example.data.model.UserProfile
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
 import com.example.ui.theme.EmeraldGreenPrimary
@@ -92,9 +98,13 @@ fun WelcomeScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val authService = remember(context) { firebaseAuthService ?: FirebaseAuthService.getInstance(context) }
+    val authManager = remember(context) { AuthManager.getInstance(context) }
 
+    var lastUser by remember { mutableStateOf(authManager.getLastRegisteredUser()) }
+    var registeredUsers by remember { mutableStateOf(authManager.getAllRegisteredUsers()) }
     var isSigningIn by remember { mutableStateOf(false) }
     var showResidentLoginDialog by remember { mutableStateOf(false) }
+    var showGoogleAccountChooser by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Surface(
@@ -309,6 +319,111 @@ fun WelcomeScreen(
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                        // WELCOME BACK PERSISTENT 1-TAP LOGIN (For returning residents who registered and logged out)
+                        lastUser?.let { user ->
+                            if (user.email.isNotBlank()) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = EmeraldContainer.copy(alpha = 0.45f),
+                                    border = BorderStroke(1.5.dp, EmeraldGreenPrimary.copy(alpha = 0.5f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (user.isAdmin) Color(0xFFE65100) else Color(0xFF1A73E8)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = user.name.take(1).uppercase(),
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "Welcome Back, ${user.name}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (user.isAdmin) {
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = Color(0xFFFFF3E0)
+                                                        ) {
+                                                            Text(
+                                                                text = "ADMIN",
+                                                                color = Color(0xFFE65100),
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                Text(
+                                                    text = user.email,
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = "${user.flatNumber} • ${user.tower.substringAfterLast("-").trim()}",
+                                                    fontSize = 10.sp,
+                                                    color = EmeraldGreenDark,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                onGoogleSignIn(
+                                                    user.name,
+                                                    user.email,
+                                                    user.phone,
+                                                    user.tower,
+                                                    user.flatNumber
+                                                )
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (user.isAdmin) Color(0xFFE65100) else EmeraldGreenDark
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Continue as ${user.name.split(" ").firstOrNull() ?: "Resident"}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // PRODUCTION GOOGLE SIGN-IN BUTTON
                         Surface(
                             modifier = Modifier
@@ -321,25 +436,25 @@ fun WelcomeScreen(
                                         when (val result = authService.signInWithGoogle(context)) {
                                             is GoogleAuthResult.Success -> {
                                                 isSigningIn = false
+                                                val existing = authManager.getRegisteredUser(result.email)
                                                 onGoogleSignIn(
                                                     result.displayName,
                                                     result.email,
-                                                    "+91-8442980101",
-                                                    "Sukhobristi Phase 1 - Tower A4",
-                                                    "Flat 803"
+                                                    existing?.phone ?: "+91-8442980101",
+                                                    existing?.tower ?: "Sukhobristi Phase 1 - Tower A4",
+                                                    existing?.flatNumber ?: "Flat 803"
                                                 )
                                             }
                                             is GoogleAuthResult.NeedsFallbackPicker -> {
                                                 isSigningIn = false
-                                                showResidentLoginDialog = true
+                                                showGoogleAccountChooser = true
                                             }
                                             is GoogleAuthResult.Cancelled -> {
                                                 isSigningIn = false
                                             }
                                             is GoogleAuthResult.Failure -> {
                                                 isSigningIn = false
-                                                errorMessage = result.message
-                                                showResidentLoginDialog = true
+                                                showGoogleAccountChooser = true
                                             }
                                         }
                                     }
@@ -389,7 +504,7 @@ fun WelcomeScreen(
                                     Spacer(modifier = Modifier.width(12.dp))
 
                                     Text(
-                                        text = "Sign in with Google",
+                                        text = if (lastUser != null) "Choose another Google account" else "Sign in with Google",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF3C4043)
@@ -446,9 +561,32 @@ fun WelcomeScreen(
         }
     }
 
-    // Production Resident Account Sign-in Dialog (when Google Play account picker is unavailable)
+    // Google Account Chooser Dialog (1-Tap Selection for known/registered accounts)
+    if (showGoogleAccountChooser) {
+        GoogleAccountChooserDialog(
+            registeredUsers = registeredUsers,
+            onSelectAccount = { selectedUser ->
+                showGoogleAccountChooser = false
+                onGoogleSignIn(
+                    selectedUser.name,
+                    selectedUser.email,
+                    selectedUser.phone,
+                    selectedUser.tower,
+                    selectedUser.flatNumber
+                )
+            },
+            onUseAnotherAccount = {
+                showGoogleAccountChooser = false
+                showResidentLoginDialog = true
+            },
+            onDismiss = { showGoogleAccountChooser = false }
+        )
+    }
+
+    // Production Resident Account Sign-in Dialog (with instant auto-fill for registered residents)
     if (showResidentLoginDialog) {
         ResidentGoogleLoginDialog(
+            authManager = authManager,
             onDismiss = { showResidentLoginDialog = false },
             onLoginComplete = { name, email, phone, tower, flat ->
                 showResidentLoginDialog = false
@@ -608,32 +746,232 @@ private fun ResidentFeatureItem(
 }
 
 /**
- * Production Resident Google Login & Flat Details Dialog
+ * Google Account Chooser Dialog (1-Tap Selection for known/registered accounts)
+ */
+@Composable
+fun GoogleAccountChooserDialog(
+    registeredUsers: List<UserProfile>,
+    onSelectAccount: (UserProfile) -> Unit,
+    onUseAnotherAccount: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4285F4)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "G",
+                            fontWeight = FontWeight.Black,
+                            color = Color.White,
+                            fontSize = 16.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Sign in with Google",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "Choose an account to continue",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(20.dp))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Select an account to sign in directly without re-entering your details:",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                registeredUsers.forEach { user ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectAccount(user) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (user.isAdmin) Color(0xFFFFB74D) else MaterialTheme.colorScheme.outlineVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (user.isAdmin) Color(0xFFE65100) else Color(0xFF1A73E8)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = user.name.take(1).uppercase(),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = user.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    if (user.isAdmin) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFFFFF3E0)
+                                        ) {
+                                            Text(
+                                                text = "ADMIN",
+                                                color = Color(0xFFE65100),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = user.email,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${user.flatNumber} • ${user.tower.substringAfterLast("-").trim()}",
+                                    fontSize = 10.sp,
+                                    color = EmeraldGreenDark,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Sign In",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Add or use another Google account
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onUseAnotherAccount() },
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Use another account",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = "Sign in with a different Google account or flat",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {}
+    )
+}
+
+/**
+ * Production Resident Google Login & Flat Details Dialog (with auto-lookup and instant login)
  */
 @Composable
 fun ResidentGoogleLoginDialog(
+    authManager: AuthManager = AuthManager.getInstance(LocalContext.current),
     onDismiss: () -> Unit,
     onLoginComplete: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit
 ) {
+    val registeredUsers = remember { authManager.getAllRegisteredUsers() }
+
     var email by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("+91-") }
     var selectedTower by remember { mutableStateOf("Sukhobristi Phase 1 - Tower A4") }
     var flatNumber by remember { mutableStateOf("") }
 
-    val towers = listOf(
-        "Sukhobristi Phase 1 - Tower A1",
-        "Sukhobristi Phase 1 - Tower A2",
-        "Sukhobristi Phase 1 - Tower A3",
-        "Sukhobristi Phase 1 - Tower A4",
-        "Sukhobristi Phase 1 - Tower A5",
-        "Sukhobristi Phase 2 - Tower B1",
-        "Sukhobristi Phase 2 - Tower B2",
-        "Sukhobristi Phase 2 - Tower B3",
-        "Sukhobristi Phase 2 - Tower B4",
-        "Sukhobristi Phase 2 - Tower B5",
-        "Sukhobristi Phase 2 - Tower B6"
-    )
+    val existingProfile = remember(email) {
+        val trimmed = email.trim().lowercase()
+        if (trimmed.contains("@") && trimmed.contains(".")) {
+            authManager.getRegisteredUser(trimmed)
+        } else null
+    }
+
+    // When an existing profile is found, pre-populate if fields are empty
+    androidx.compose.runtime.LaunchedEffect(existingProfile) {
+        existingProfile?.let { prof ->
+            name = prof.name
+            phone = prof.phone
+            selectedTower = prof.tower
+            flatNumber = prof.flatNumber
+        }
+    }
+
+    val isRegistered = existingProfile != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -660,7 +998,7 @@ fun ResidentGoogleLoginDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Resident Sign In",
+                        text = if (isRegistered) "Resident Sign In" else "Resident Registration",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -677,11 +1015,85 @@ fun ResidentGoogleLoginDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Enter your Google account and flat details for seamless doorstep delivery in Shapoorji Sukhobristi.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Quick chips for registered users
+                if (registeredUsers.isNotEmpty()) {
+                    Text(
+                        text = "Registered Residents on Device:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(registeredUsers) { regUser ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (email.equals(regUser.email, ignoreCase = true)) EmeraldGreenPrimary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    email = regUser.email
+                                    name = regUser.name
+                                    phone = regUser.phone
+                                    selectedTower = regUser.tower
+                                    flatNumber = regUser.flatNumber
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = regUser.name.split(" ").firstOrNull() ?: regUser.email,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (email.equals(regUser.email, ignoreCase = true)) Color.White else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "(${regUser.flatNumber})",
+                                        fontSize = 10.sp,
+                                        color = if (email.equals(regUser.email, ignoreCase = true)) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Banner when existing profile recognized
+                if (isRegistered && existingProfile != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = EmeraldContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = EmeraldGreenDark,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Registered Resident found: ${existingProfile.name} (${existingProfile.flatNumber})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = EmeraldGreenDark
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Enter your Google email and flat details. Once registered, your profile is permanently saved on this device.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 OutlinedTextField(
                     value = email,
@@ -749,10 +1161,15 @@ fun ResidentGoogleLoginDialog(
                 },
                 enabled = email.contains("@") && email.contains("."),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isRegistered) EmeraldGreenDark else EmeraldGreenPrimary
+                ),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Continue to Store", fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (isRegistered) "Sign In as ${name.ifBlank { "Resident" }}" else "Register & Continue to Store",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {}

@@ -216,6 +216,23 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
+    fun quickSignIn(email: String): Boolean {
+        val user = authManager.quickSignIn(email) ?: return false
+        selectedTower.value = user.tower
+        flatInput.value = user.flatNumber
+        if (!authManager.isAuthorizedAdmin(user)) {
+            _isAdminMode.value = false
+        }
+        toastMessage.value = "Signed in as ${user.name} (${user.email})"
+        return true
+    }
+
+    fun getRegisteredUsers(): List<UserProfile> = authManager.getAllRegisteredUsers()
+
+    fun getLastRegisteredUser(): UserProfile? = authManager.getLastRegisteredUser()
+
+    fun isEmailRegistered(email: String): Boolean = authManager.isEmailRegistered(email)
+
     fun signOut() {
         authManager.signOut()
         _isAdminMode.value = false

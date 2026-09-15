@@ -138,7 +138,11 @@ class FirebaseAuthService(
             // Retrieve Google Web Client ID from resources or parameter
             val serverClientId = customServerClientId
                 ?: getServerClientId(activityContext)
-                ?: "614154736274-placeholder.apps.googleusercontent.com"
+
+            if (serverClientId.isNullOrBlank() || serverClientId.contains("placeholder")) {
+                Log.d(TAG, "No Google Web Client ID configured, launching Google Account Chooser directly")
+                return GoogleAuthResult.NeedsFallbackPicker("Select your Google account to continue")
+            }
 
             val googleIdOptionBuilder = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
