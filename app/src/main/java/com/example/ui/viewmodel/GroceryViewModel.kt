@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.auth.AuthManager
 import com.example.data.local.AppDatabase
 import com.example.data.model.CartItem
 import com.example.data.model.Order
@@ -21,11 +22,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class GroceryViewModel(application: Application) : AndroidViewModel(application) {
 
+    val authManager = AuthManager.getInstance(application)
     private val database = AppDatabase.getDatabase(application, viewModelScope)
     private val dispatcher = NotificationDispatcher(application, database.notificationLogDao())
     val repository = GroceryRepository(
@@ -34,21 +37,23 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         reviewDao = database.reviewDao(),
         favoriteDao = database.favoriteDao(),
         notificationLogDao = database.notificationLogDao(),
+        cartDao = database.cartDao(),
         dispatcher = dispatcher
     )
 
-    // User Profile / Google Sign-in
-    private val _currentUser = MutableStateFlow(
-        UserProfile(
-            name = "Sourav Brock",
-            email = "souravbrock@gmail.com",
-            phone = "+91 98765 43210",
-            tower = "Sukhobristi Phase 1 - Tower A4",
-            flatNumber = "Flat 803, 8th Floor",
-            isGoogleSignedIn = true
-        )
-    )
-    val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
+    init {
+        viewModelScope.launch {
+            repository.syncOfficialCatalog()
+        }
+    }
+
+    // User Profile / Customer Registration powered by AuthManager
+    val currentUser: StateFlow<UserProfile> = authManager.currentUser
+
+    // Admin Access Control: strictly restricted to souravbrock@gmail.com
+    val isCurrentUserAdmin: StateFlow<Boolean> = currentUser.map { user ->
+        authManager.isAuthorizedAdmin(user)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // Mode: Customer vs Admin
     private val _isAdminMode = MutableStateFlow(false)
@@ -69,7 +74,11 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         searchQuery
     ) { products, category, query ->
         products.filter { product ->
-            val matchesCategory = (category == "All" || product.category.equals(category, ignoreCase = true))
+            val matchesCategory = when (category) {
+                "All" -> true
+                "Daily Essentials" -> product.isDailyEssential
+                else -> product.category.equals(category, ignoreCase = true)
+            }
             val matchesQuery = query.isBlank() ||
                     product.name.contains(query, ignoreCase = true) ||
                     product.description.contains(query, ignoreCase = true)
@@ -77,22 +86,33 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Cart items: productId -> quantity
-    private val _cartMap = MutableStateFlow<Map<Long, Int>>(emptyMap())
-    val cartMap: StateFlow<Map<Long, Int>> = _cartMap.asStateFlow()
+    // Shopping Cart (Room-backed persistence)
+    val cartEntities: StateFlow<List<com.example.data.model.CartItemEntity>> = repository.allCartEntities
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val cartItems: StateFlow<List<CartItem>> = combine(allProducts, _cartMap) { products, cart ->
+    val cartItems: StateFlow<List<CartItem>> = combine(allProducts, cartEntities) { products, entities ->
         val productMap = products.associateBy { it.id }
-        cart.mapNotNull { (productId, qty) ->
-            productMap[productId]?.let { CartItem(it, qty) }
+        entities.mapNotNull { entity ->
+            productMap[entity.productId]?.let { prod ->
+                CartItem(
+                    product = prod,
+                    quantity = entity.quantity,
+                    portionLabel = entity.portionLabel
+                )
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val cartSubtotal: StateFlow<Double> = cartItems.combine(_cartMap) { items, _ ->
+    // Quick map of productId -> quantity for badges and catalog buttons
+    val cartMap: StateFlow<Map<Long, Double>> = cartEntities.map { list ->
+        list.associate { it.productId to it.quantity }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val cartSubtotal: StateFlow<Double> = cartItems.map { items ->
         items.sumOf { it.totalPrice }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val deliveryFee: StateFlow<Double> = cartSubtotal.combine(_currentUser) { subtotal, _ ->
+    val deliveryFee: StateFlow<Double> = cartSubtotal.map { subtotal ->
         // Free delivery inside Shapoorji on orders above ₹199, else nominal ₹20
         if (subtotal >= 199.0 || subtotal == 0.0) 0.0 else 20.0
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
@@ -110,7 +130,7 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Customer's Orders
-    val customerOrders: StateFlow<List<Order>> = combine(allOrders, _currentUser) { orders, user ->
+    val customerOrders: StateFlow<List<Order>> = combine(allOrders, currentUser) { orders, user ->
         orders.filter { it.customerEmail.equals(user.email, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -131,49 +151,110 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     val toastMessage = MutableStateFlow<String?>(null)
 
     fun toggleAdminMode() {
+        val user = currentUser.value
+        if (!authManager.isAuthorizedAdmin(user)) {
+            _isAdminMode.value = false
+            toastMessage.value = "Access Restricted: Device account '${user.email}' does not have administrator privileges. Admin access is reserved for ${AuthManager.ADMIN_EMAIL}."
+            return
+        }
         _isAdminMode.value = !_isAdminMode.value
     }
 
     fun setAdminMode(enabled: Boolean) {
+        val user = currentUser.value
+        if (enabled && !authManager.isAuthorizedAdmin(user)) {
+            _isAdminMode.value = false
+            toastMessage.value = "Access Restricted: Device account '${user.email}' does not have administrator privileges. Admin access is reserved for ${AuthManager.ADMIN_EMAIL}."
+            return
+        }
         _isAdminMode.value = enabled
     }
 
-    // Google Sign-In Simulation
-    fun signInWithGoogle(email: String, name: String) {
-        _currentUser.value = _currentUser.value.copy(
-            name = name.ifBlank { "Sourav Brock" },
-            email = email.ifBlank { "souravbrock@gmail.com" },
-            isGoogleSignedIn = true
+    // Customer Account Registration / Sign-In with Mail and Phone
+    fun registerOrUpdateCustomer(
+        name: String,
+        email: String,
+        phone: String,
+        tower: String = selectedTower.value,
+        flat: String = flatInput.value
+    ) {
+        val cleanTower = tower.trim().ifBlank { selectedTower.value }
+        val cleanFlat = flat.trim().ifBlank { flatInput.value }
+
+        val updatedUser = authManager.signInWithGoogle(
+            name = name,
+            email = email,
+            phone = phone,
+            tower = cleanTower,
+            flat = cleanFlat
         )
-        toastMessage.value = "Signed in as ${_currentUser.value.email}"
+
+        selectedTower.value = cleanTower
+        flatInput.value = cleanFlat
+
+        // If the new user is not admin, immediately revoke admin mode
+        if (!authManager.isAuthorizedAdmin(updatedUser)) {
+            _isAdminMode.value = false
+        }
+
+        toastMessage.value = "Signed in as ${updatedUser.name} (${updatedUser.email})"
+    }
+
+    fun signInWithGoogle(
+        name: String,
+        email: String,
+        phone: String = currentUser.value.phone,
+        tower: String = currentUser.value.tower,
+        flat: String = currentUser.value.flatNumber
+    ) {
+        registerOrUpdateCustomer(
+            name = name,
+            email = email,
+            phone = phone,
+            tower = tower,
+            flat = flat
+        )
     }
 
     fun signOut() {
-        _currentUser.value = _currentUser.value.copy(isGoogleSignedIn = false)
+        authManager.signOut()
+        _isAdminMode.value = false
         toastMessage.value = "Signed out of Google account"
     }
 
-    // Cart operations
-    fun addToCart(productId: Long) {
-        val current = _cartMap.value.toMutableMap()
-        val count = current.getOrDefault(productId, 0)
-        current[productId] = count + 1
-        _cartMap.value = current
+    // Cart operations (Room-backed)
+    fun addToCart(productId: Long, quantity: Double = 1.0, portionLabel: String = "") {
+        viewModelScope.launch {
+            repository.addToCart(productId, quantity, portionLabel)
+        }
     }
 
-    fun removeFromCart(productId: Long) {
-        val current = _cartMap.value.toMutableMap()
-        val count = current.getOrDefault(productId, 0)
-        if (count <= 1) {
-            current.remove(productId)
-        } else {
-            current[productId] = count - 1
+    fun setPortionInCart(productId: Long, fraction: Double, portionLabel: String) {
+        viewModelScope.launch {
+            repository.setPortionInCart(productId, fraction, portionLabel)
         }
-        _cartMap.value = current
+    }
+
+    fun setCartPortion(productId: Long, fraction: Double, portionLabel: String) {
+        setPortionInCart(productId, fraction, portionLabel)
+    }
+
+    fun removeFromCart(productId: Long, fractionStep: Double = 1.0) {
+        viewModelScope.launch {
+            repository.removeFromCart(productId, fractionStep)
+        }
+    }
+
+    fun deleteFromCart(productId: Long) {
+        viewModelScope.launch {
+            repository.deleteCartItem(productId)
+        }
     }
 
     fun clearCart() {
-        _cartMap.value = emptyMap()
+        viewModelScope.launch {
+            repository.clearCart()
+        }
     }
 
     // Favorites
@@ -228,14 +309,15 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
                         productName = it.product.name,
                         unit = it.product.unit,
                         price = it.product.price,
-                        quantity = it.quantity
+                        quantity = it.quantity,
+                        portionLabel = it.portionLabel
                     )
                 }
 
                 val order = repository.placeOrder(
-                    customerName = _currentUser.value.name,
-                    customerEmail = _currentUser.value.email,
-                    customerPhone = _currentUser.value.phone,
+                    customerName = currentUser.value.name,
+                    customerEmail = currentUser.value.email,
+                    customerPhone = currentUser.value.phone,
                     towerName = selectedTower.value,
                     flatNumber = flatInput.value,
                     deliveryNotes = deliveryNotesInput.value,
@@ -313,13 +395,88 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // Admin: Reset / Sync Official Catalog
+    fun resetToOfficialCatalog() {
+        viewModelScope.launch {
+            repository.resetToOfficialCatalog()
+            toastMessage.value = "Reset to official catalog (37 fresh produce items with live prices)"
+        }
+    }
+
+    // Admin: Update Product (full object)
+    fun updateProduct(product: Product) {
+        viewModelScope.launch {
+            repository.updateProduct(product)
+            toastMessage.value = "Updated ${product.name}"
+        }
+    }
+
+    // Admin: Update Stock & Inventory
+    fun updateStock(productId: Long, stockQty: Int) {
+        viewModelScope.launch {
+            repository.updateStock(productId, stockQty)
+            toastMessage.value = "Updated stock to $stockQty"
+        }
+    }
+
+    // Admin: Update Product Details (name, price, description, imageUrl, unit, category, fractional settings)
+    fun updateProductDetails(
+        productId: Long,
+        name: String,
+        price: Double,
+        description: String,
+        imageUrl: String,
+        unit: String = "1 kg",
+        category: String = "Vegetables",
+        allowFractional: Boolean = false,
+        fractionStepGrams: Int = 250
+    ) {
+        viewModelScope.launch {
+            repository.updateProductDetails(productId, name, price, description, imageUrl, unit, category, allowFractional, fractionStepGrams)
+            toastMessage.value = "Updated product: $name"
+        }
+    }
+
+    // Admin: Add New Product into Catalog
+    fun addProduct(
+        name: String,
+        category: String = "Vegetables",
+        unit: String = "1 kg",
+        price: Double,
+        mrp: Double = price * 1.15,
+        stockQty: Int = 50,
+        description: String = "",
+        imageUrl: String = "",
+        isDailyEssential: Boolean = false,
+        allowFractional: Boolean = false,
+        fractionStepGrams: Int = 250
+    ) {
+        viewModelScope.launch {
+            val prod = Product(
+                name = name,
+                price = price,
+                mrp = mrp,
+                stockQty = stockQty,
+                description = description,
+                imageUrl = imageUrl,
+                unit = unit,
+                category = category,
+                isDailyEssential = isDailyEssential,
+                allowFractional = allowFractional,
+                fractionStepGrams = fractionStepGrams
+            )
+            repository.insertProduct(prod)
+            toastMessage.value = "Added $name to catalog"
+        }
+    }
+
     // Customer: Submit Review & Rating
     fun submitReview(productId: Long, rating: Int, comment: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             repository.addReview(
                 productId = productId,
-                customerName = _currentUser.value.name,
-                customerEmail = _currentUser.value.email,
+                customerName = currentUser.value.name,
+                customerEmail = currentUser.value.email,
                 rating = rating,
                 comment = comment
             )

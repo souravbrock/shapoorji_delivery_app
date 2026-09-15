@@ -101,8 +101,9 @@ fun InvoiceScreen(
             appendLine("--------------------------------------------------")
             appendLine("ITEMIZED GROCERY DETAILS:")
             items.forEachIndexed { i, itm ->
-                appendLine("${i + 1}. ${itm.productName} (${itm.unit})")
-                appendLine("   Qty: ${itm.quantity} x ₹${itm.price.toInt()} = ₹${itm.total.toInt()}")
+                val qtyStr = if (itm.portionLabel.isNotBlank()) itm.portionLabel else "${itm.quantity} ${itm.unit}"
+                appendLine("${i + 1}. ${itm.productName}")
+                appendLine("   Qty: $qtyStr x ₹${itm.price.toInt()} = ₹${itm.total.toInt()}")
             }
             appendLine("--------------------------------------------------")
             appendLine("Subtotal     : ₹${order.subtotal.toInt()}")
@@ -363,9 +364,11 @@ fun InvoiceScreen(
                         ) {
                             Column(modifier = Modifier.weight(2f)) {
                                 Text(item.productName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)
-                                Text(item.unit, fontSize = 11.sp, color = Color.Gray)
+                                val unitOrPortion = if (item.portionLabel.isNotBlank()) item.portionLabel else item.unit
+                                Text(unitOrPortion, fontSize = 11.sp, color = Color.Gray)
                             }
-                            Text("${item.quantity}", fontSize = 12.sp, color = Color.Black, modifier = Modifier.weight(0.7f))
+                            val displayQty = if (item.portionLabel.isNotBlank()) item.portionLabel else if (item.quantity == item.quantity.toInt().toDouble()) "${item.quantity.toInt()}" else "${item.quantity}"
+                            Text(displayQty, fontSize = 12.sp, color = Color.Black, modifier = Modifier.weight(0.7f))
                             Text("₹${item.price.toInt()}", fontSize = 12.sp, color = Color.Black, modifier = Modifier.weight(1f))
                             Text("₹${item.total.toInt()}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Black, modifier = Modifier.weight(1f))
                         }
@@ -436,7 +439,7 @@ fun InvoiceScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "This is a computer-generated tax invoice for Shapoorji Delivery. For queries, contact order@spdelivery.reddevils.co.in",
+                            text = "This is a computer-generated tax invoice for Shapoorji Delivery. For queries or phone orders, contact +91-8442980101 / order@spdelivery.reddevils.co.in",
                             fontSize = 10.sp,
                             color = Color.Gray,
                             lineHeight = 14.sp

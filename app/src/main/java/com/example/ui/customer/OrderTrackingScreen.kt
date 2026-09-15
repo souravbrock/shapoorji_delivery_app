@@ -454,13 +454,14 @@ fun OrderItemsBreakdownCard(order: Order) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        val qtyPrefix = if (item.portionLabel.isNotBlank()) item.portionLabel else if (item.quantity == item.quantity.toInt().toDouble()) "${item.quantity.toInt()}x" else "${item.quantity}x"
                         Text(
-                            text = "${item.quantity}x ${item.productName}",
+                            text = "$qtyPrefix ${item.productName}",
                             fontWeight = FontWeight.Medium,
                             fontSize = 13.sp
                         )
                         Text(
-                            text = item.unit,
+                            text = if (item.portionLabel.isNotBlank()) "${item.portionLabel} (${item.unit})" else item.unit,
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

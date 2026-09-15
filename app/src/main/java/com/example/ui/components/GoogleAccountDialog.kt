@@ -11,17 +11,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -48,11 +53,16 @@ import com.example.ui.theme.EmeraldGreenPrimary
 fun GoogleAccountDialog(
     currentUser: UserProfile,
     onDismiss: () -> Unit,
-    onSaveProfile: (name: String, email: String) -> Unit,
+    onSaveProfile: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
     onSignOut: () -> Unit
 ) {
     var email by remember { mutableStateOf(currentUser.email) }
     var name by remember { mutableStateOf(currentUser.name) }
+    var phone by remember { mutableStateOf(currentUser.phone) }
+    var tower by remember { mutableStateOf(currentUser.tower) }
+    var flat by remember { mutableStateOf(currentUser.flatNumber) }
+
+    val isAdminEmail = email.trim().equals("souravbrock@gmail.com", ignoreCase = true)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -60,28 +70,29 @@ fun GoogleAccountDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF4285F4)),
+                        .background(if (isAdminEmail) Color(0xFFE65100) else Color(0xFF4285F4)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "G",
-                        fontWeight = FontWeight.Black,
-                        color = Color.White,
-                        fontSize = 18.sp
+                    Icon(
+                        imageVector = if (isAdminEmail) Icons.Default.AdminPanelSettings else Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "Google Account Registration",
+                        text = if (isAdminEmail) "Store Admin Account" else "Customer Account Registration",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "Verified Customer Identity",
+                        text = if (isAdminEmail) "Authorized Administrator" else "Verified Customer Identity",
                         style = MaterialTheme.typography.bodySmall,
-                        color = EmeraldGreenPrimary
+                        color = if (isAdminEmail) Color(0xFFE65100) else EmeraldGreenPrimary,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -90,30 +101,37 @@ fun GoogleAccountDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Anti-fraud security badge
+                // Role badge and security banner
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isAdminEmail) Color(0xFFFFF3E0) else EmeraldContainer
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VerifiedUser,
-                            contentDescription = "Verified",
-                            tint = EmeraldGreenDark,
+                            imageVector = if (isAdminEmail) Icons.Default.Security else Icons.Default.VerifiedUser,
+                            contentDescription = "Role",
+                            tint = if (isAdminEmail) Color(0xFFE65100) else EmeraldGreenDark,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Google Sign-in prevents fake orders and protects Shapoorji delivery slots.",
+                            text = if (isAdminEmail) {
+                                "Store Administrator account: souravbrock@gmail.com"
+                            } else {
+                                "Resident Account: Orders will be delivered to your verified Sukhobristi flat."
+                            },
                             fontSize = 11.sp,
-                            color = EmeraldGreenDark,
+                            color = if (isAdminEmail) Color(0xFFBF360C) else EmeraldGreenDark,
                             lineHeight = 15.sp
                         )
                     }
@@ -130,14 +148,48 @@ fun GoogleAccountDialog(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Google Account Email") },
-                    placeholder = { Text("souravbrock@gmail.com") },
+                    label = { Text("Email Address") },
+                    placeholder = { Text("customer@example.com") },
+                    supportingText = {
+                        if (email.trim().equals("souravbrock@gmail.com", ignoreCase = true)) {
+                            Text("✓ Admin privileges active for this email", color = Color(0xFF2E7D32), fontSize = 11.sp)
+                        } else {
+                            Text("Customer-only access (Admin panel locked)", color = Color.Gray, fontSize = 11.sp)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone Number") },
+                    placeholder = { Text("+91-8442980101") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = tower,
+                    onValueChange = { tower = it },
+                    label = { Text("Tower / Building (Shapoorji)") },
+                    placeholder = { Text("Sukhobristi Phase 1 - Tower A4") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = flat,
+                    onValueChange = { flat = it },
+                    label = { Text("Flat / Unit Number") },
+                    placeholder = { Text("Flat 803, 8th Floor") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 )
 
                 Text(
-                    text = "All order confirmation emails and status updates will be dispatched to this verified address from order@spdelivery.reddevils.co.in",
+                    text = "Order confirmation emails and status updates will be dispatched from order@spdelivery.reddevils.co.in to this address and souravbrock@gmail.com.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 15.sp
@@ -147,21 +199,34 @@ fun GoogleAccountDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSaveProfile(name.trim(), email.trim())
+                    onSaveProfile(name.trim(), email.trim(), phone.trim(), tower.trim(), flat.trim())
                     onDismiss()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isAdminEmail) Color(0xFFE65100) else EmeraldGreenPrimary
+                ),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Save Profile")
+                Text(if (isAdminEmail) "Save & Login as Admin" else "Save & Register as Customer")
             }
         },
         dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text("Close")
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        onSignOut()
+                        onDismiss()
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Sign Out", color = Color.Red, fontSize = 12.sp)
+                }
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Close", fontSize = 12.sp)
+                }
             }
         }
     )

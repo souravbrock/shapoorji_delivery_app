@@ -116,7 +116,7 @@ fun FavoritesScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(favoriteProducts, key = { it.id }) { product ->
-                    val qty = cartMap[product.id] ?: 0
+                    val qty = cartMap[product.id] ?: 0.0
                     ProductCard(
                         product = product,
                         cartQuantity = qty,
@@ -124,7 +124,10 @@ fun FavoritesScreen(
                         onAddToCart = { viewModel.addToCart(product.id) },
                         onRemoveFromCart = { viewModel.removeFromCart(product.id) },
                         onToggleFavorite = { viewModel.toggleFavorite(product.id) },
-                        onOpenReviews = { reviewProductTarget = product }
+                        onOpenReviews = { reviewProductTarget = product },
+                        onSetPortion = { fraction, label ->
+                            viewModel.setCartPortion(product.id, fraction, label)
+                        }
                     )
                 }
             }

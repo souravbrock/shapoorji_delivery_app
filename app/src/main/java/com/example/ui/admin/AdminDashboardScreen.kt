@@ -47,6 +47,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -75,10 +76,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.NotificationLog
 import com.example.data.model.NotificationType
 import com.example.data.model.Order
@@ -117,6 +120,7 @@ fun AdminDashboardScreen(
     val logs by viewModel.notificationLogs.collectAsState()
 
     var showAddProductDialog by remember { mutableStateOf(false) }
+    var editingProduct by remember { mutableStateOf<Product?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -139,7 +143,7 @@ fun AdminDashboardScreen(
                             Text("Store Admin Console", fontWeight = FontWeight.Black, fontSize = 18.sp)
                         }
                         Text(
-                            text = "Shapoorji Sukhobristi Operations",
+                            text = "Admin: souravbrock@gmail.com • +91-8442980101",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -233,8 +237,10 @@ fun AdminDashboardScreen(
                 )
                 2 -> AdminProductsCatalogTab(
                     products = products,
+                    onEditProduct = { editingProduct = it },
                     onDeleteProduct = { viewModel.deleteProduct(it) },
-                    onAddClick = { showAddProductDialog = true }
+                    onAddClick = { showAddProductDialog = true },
+                    onResetOfficial = { viewModel.resetToOfficialCatalog() }
                 )
                 3 -> AdminNotificationLogsTab(
                     logs = logs,
@@ -254,9 +260,32 @@ fun AdminDashboardScreen(
     if (showAddProductDialog) {
         AddProductDialog(
             onDismiss = { showAddProductDialog = false },
-            onSave = { name, category, unit, price, mrp, stock, desc, url, isDaily ->
-                viewModel.addProduct(name, category, unit, price, mrp, stock, desc, url, isDaily)
+            onSave = { name, category, unit, price, mrp, stock, desc, url, isDaily, allowFrac, fracStep ->
+                viewModel.addProduct(
+                    name = name,
+                    category = category,
+                    unit = unit,
+                    price = price,
+                    mrp = mrp,
+                    stockQty = stock,
+                    description = desc,
+                    imageUrl = url,
+                    isDailyEssential = isDaily,
+                    allowFractional = allowFrac,
+                    fractionStepGrams = fracStep
+                )
                 showAddProductDialog = false
+            }
+        )
+    }
+
+    editingProduct?.let { product ->
+        EditProductDialog(
+            product = product,
+            onDismiss = { editingProduct = null },
+            onSave = { updated ->
+                viewModel.updateProduct(updated)
+                editingProduct = null
             }
         )
     }
@@ -580,8 +609,10 @@ fun DailyPriceItemRow(
 @Composable
 fun AdminProductsCatalogTab(
     products: List<Product>,
+    onEditProduct: (Product) -> Unit,
     onDeleteProduct: (Product) -> Unit,
-    onAddClick: () -> Unit
+    onAddClick: () -> Unit,
+    onResetOfficial: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -589,6 +620,43 @@ fun AdminProductsCatalogTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Official Store Catalog (${products.size} Items)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = EmeraldGreenDark
+                        )
+                        Text(
+                            text = "37 produce items (Vegetables & Fruits) with multilingual Bengali & Hindi titles and live rates.",
+                            fontSize = 11.sp,
+                            color = EmeraldGreenDark.copy(alpha = 0.85f)
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onResetOfficial,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Sync Official", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         items(products, key = { it.id }) { product ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -600,25 +668,105 @@ fun AdminProductsCatalogTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    AsyncImage(
+                        model = product.imageUrl.ifBlank { "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400" },
+                        contentDescription = product.name,
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(product.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
-                            "${product.category} • ${product.unit} • ₹${product.price.toInt()}",
+                            text = product.name,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 2
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${product.category} • ${product.unit} • ₹${product.price.toInt()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Text("Stock: ${product.stockQty} units", fontSize = 11.sp, color = EmeraldGreenPrimary)
+                        if (product.description.isNotBlank()) {
+                            Text(
+                                text = product.description,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                maxLines = 1
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val isLowStock = product.stockQty <= 20
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isLowStock) CoralRed.copy(alpha = 0.15f) else EmeraldContainer)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (product.stockQty <= 0) "Out of Stock" else "Stock: ${product.stockQty} ${product.unit}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isLowStock) CoralRed else EmeraldGreenDark
+                            )
+                        }
+
+                        if (product.allowFractional && product.isUnitDivisible()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFE8F5E9))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "Fractional: from ${if (product.fractionStepGrams <= 100) "100g" else "250g"}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        } else if (!product.isUnitDivisible()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "Fixed Per-Piece",
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
-                    IconButton(onClick = { onDeleteProduct(product) }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = CoralRed
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { onEditProduct(product) }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Product",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        IconButton(onClick = { onDeleteProduct(product) }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Product",
+                                tint = CoralRed,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1193,7 +1341,9 @@ fun AddProductDialog(
         stock: Int,
         description: String,
         imageUrl: String,
-        isDaily: Boolean
+        isDaily: Boolean,
+        allowFractional: Boolean,
+        fractionStepGrams: Int
     ) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
@@ -1206,6 +1356,14 @@ fun AddProductDialog(
     var description by remember { mutableStateOf("Fresh daily stock for Shapoorji residents.") }
     var imageUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1542838132-92c53300491e?w=400") }
     var isDailyEssential by remember { mutableStateOf(true) }
+
+    val isUnitDivisible = remember(unit) {
+        val lower = unit.lowercase()
+        val isPiece = lower.contains("pc") || lower.contains("piece") || lower.contains("bunch") || lower.contains("packet") || lower.contains("bottle")
+        (lower.contains("kg") || lower.contains("gm") || lower.contains("gram") || lower.contains("l") || lower.contains("liter") || lower.contains("litre") || lower.contains("ltr") || lower.contains("ml")) && !isPiece
+    }
+    var allowFractional by remember { mutableStateOf(true) }
+    var fractionStepGrams by remember { mutableStateOf(250) }
 
     val categories = listOf("Vegetables", "Fruits", "Dairy & Breakfast", "Staples & Atta")
 
@@ -1221,7 +1379,12 @@ fun AddProductDialog(
             ) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = {
+                        name = it
+                        if (it.lowercase().contains("garlic") || it.lowercase().contains("ginger") || it.lowercase().contains("chilli")) {
+                            fractionStepGrams = 100
+                        }
+                    },
                     label = { Text("Product Name") },
                     placeholder = { Text("e.g. Fresh Green Capsicum") },
                     modifier = Modifier.fillMaxWidth(),
@@ -1295,6 +1458,24 @@ fun AddProductDialog(
                     )
                 }
 
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Product Description") },
+                    placeholder = { Text("e.g. Fresh farm-picked produce...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    label = { Text("Image URL") },
+                    placeholder = { Text("https://...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1306,6 +1487,66 @@ fun AddProductDialog(
                         onCheckedChange = { isDailyEssential = it },
                         colors = SwitchDefaults.colors(checkedThumbColor = EmeraldGreenPrimary)
                     )
+                }
+
+                // Fractional Purchase Admin Configuration
+                if (isUnitDivisible) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (allowFractional) EmeraldContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Enable Fractional Purchase", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Allow buying in 100g, 250g, 500g etc.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(
+                                    checked = allowFractional,
+                                    onCheckedChange = { allowFractional = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = EmeraldGreenPrimary)
+                                )
+                            }
+                            if (allowFractional) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Fraction Step:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    FilterChip(
+                                        selected = fractionStepGrams == 100,
+                                        onClick = { fractionStepGrams = 100 },
+                                        label = { Text("100g Step (Garlic/Ginger)", fontSize = 10.sp) }
+                                    )
+                                    FilterChip(
+                                        selected = fractionStepGrams == 250,
+                                        onClick = { fractionStepGrams = 250 },
+                                        label = { Text("250g Step (Tomato/Veg)", fontSize = 10.sp) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "ℹ️ Fixed Per-Piece: Per-piece items ('$unit') cannot be bought in fractions.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -1322,13 +1563,259 @@ fun AddProductDialog(
                             stockStr.toIntOrNull() ?: 50,
                             description.trim(),
                             imageUrl.trim(),
-                            isDailyEssential
+                            isDailyEssential,
+                            if (isUnitDivisible) allowFractional else false,
+                            fractionStepGrams
                         )
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
             ) {
                 Text("Add to Catalog")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// EDIT PRODUCT DIALOG
+// -------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditProductDialog(
+    product: Product,
+    onDismiss: () -> Unit,
+    onSave: (Product) -> Unit
+) {
+    var name by remember { mutableStateOf(product.name) }
+    var category by remember { mutableStateOf(product.category) }
+    var isCategoryMenuExpanded by remember { mutableStateOf(false) }
+    var unit by remember { mutableStateOf(product.unit) }
+    var priceStr by remember { mutableStateOf(product.price.toInt().toString()) }
+    var mrpStr by remember { mutableStateOf(product.mrp.toInt().toString()) }
+    var stockStr by remember { mutableStateOf(product.stockQty.toString()) }
+    var description by remember { mutableStateOf(product.description) }
+    var imageUrl by remember { mutableStateOf(product.imageUrl) }
+    var isDailyEssential by remember { mutableStateOf(product.isDailyEssential) }
+
+    val isUnitDivisible = remember(unit) {
+        val lower = unit.lowercase()
+        val isPiece = lower.contains("pc") || lower.contains("piece") || lower.contains("bunch") || lower.contains("packet") || lower.contains("bottle")
+        (lower.contains("kg") || lower.contains("gm") || lower.contains("gram") || lower.contains("l") || lower.contains("liter") || lower.contains("litre") || lower.contains("ltr") || lower.contains("ml")) && !isPiece
+    }
+    var allowFractional by remember { mutableStateOf(product.allowFractional && isUnitDivisible) }
+    var fractionStepGrams by remember { mutableStateOf(product.fractionStepGrams) }
+
+    val categories = listOf("Vegetables", "Fruits", "Dairy & Breakfast", "Staples & Atta")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Product & Inventory", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Product Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                // Category selector
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryMenuExpanded,
+                    onExpandedChange = { isCategoryMenuExpanded = !isCategoryMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryMenuExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isCategoryMenuExpanded,
+                        onDismissRequest = { isCategoryMenuExpanded = false }
+                    ) {
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat) },
+                                onClick = {
+                                    category = cat
+                                    isCategoryMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = unit,
+                        onValueChange = { unit = it },
+                        label = { Text("Unit") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    OutlinedTextField(
+                        value = priceStr,
+                        onValueChange = { priceStr = it },
+                        label = { Text("Price (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = mrpStr,
+                        onValueChange = { mrpStr = it },
+                        label = { Text("MRP (₹)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    OutlinedTextField(
+                        value = stockStr,
+                        onValueChange = { stockStr = it },
+                        label = { Text("Stock Qty") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    maxLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    label = { Text("Image URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Daily Essential / Fresh Today:", fontSize = 13.sp)
+                    Switch(
+                        checked = isDailyEssential,
+                        onCheckedChange = { isDailyEssential = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = EmeraldGreenPrimary)
+                    )
+                }
+
+                // Fractional Purchase Admin Configuration
+                if (isUnitDivisible) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (allowFractional) EmeraldContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Enable Fractional Purchase", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Allow buying in 100g, 250g, 500g etc.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(
+                                    checked = allowFractional,
+                                    onCheckedChange = { allowFractional = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = EmeraldGreenPrimary)
+                                )
+                            }
+                            if (allowFractional) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Fraction Step:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    FilterChip(
+                                        selected = fractionStepGrams == 100,
+                                        onClick = { fractionStepGrams = 100 },
+                                        label = { Text("100g Step (Garlic/Ginger)", fontSize = 10.sp) }
+                                    )
+                                    FilterChip(
+                                        selected = fractionStepGrams == 250,
+                                        onClick = { fractionStepGrams = 250 },
+                                        label = { Text("250g Step (Tomato/Veg)", fontSize = 10.sp) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "ℹ️ Fixed Per-Piece: Per-piece items ('$unit') cannot be bought in fractions.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        val parsedStock = stockStr.toIntOrNull() ?: product.stockQty
+                        onSave(
+                            product.copy(
+                                name = name.trim(),
+                                category = category,
+                                unit = unit.trim(),
+                                price = priceStr.toDoubleOrNull() ?: product.price,
+                                mrp = mrpStr.toDoubleOrNull() ?: product.mrp,
+                                stockQty = parsedStock,
+                                isAvailable = parsedStock > 0,
+                                description = description.trim(),
+                                imageUrl = imageUrl.trim(),
+                                isDailyEssential = isDailyEssential,
+                                allowFractional = if (isUnitDivisible) allowFractional else false,
+                                fractionStepGrams = fractionStepGrams,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
+            ) {
+                Text("Save Changes")
             }
         },
         dismissButton = {

@@ -1,6 +1,7 @@
 package com.example.ui.customer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,10 +55,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.CartItem
+import com.example.ui.components.PortionSelectionDialog
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
 import com.example.ui.theme.EmeraldGreenPrimary
 import com.example.ui.viewmodel.GroceryViewModel
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,7 +81,7 @@ fun CartScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "My Grocery Cart (${cartItems.sumOf { it.quantity }})",
+                        text = "My Grocery Cart (${cartItems.size} items)",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -230,7 +236,10 @@ fun CartScreen(
                     CartItemRow(
                         item = item,
                         onIncrease = { viewModel.addToCart(item.product.id) },
-                        onDecrease = { viewModel.removeFromCart(item.product.id) }
+                        onDecrease = { viewModel.removeFromCart(item.product.id) },
+                        onSetPortion = { fraction, label ->
+                            viewModel.setCartPortion(item.product.id, fraction, label)
+                        }
                     )
                 }
 
@@ -319,8 +328,13 @@ fun CartScreen(
 fun CartItemRow(
     item: CartItem,
     onIncrease: () -> Unit,
-    onDecrease: () -> Unit
+    onDecrease: () -> Unit,
+    onSetPortion: ((Double, String) -> Unit)? = null
 ) {
+    var showPortionDialog by remember { mutableStateOf(false) }
+    val isFractional = item.product.allowFractional && item.product.isUnitDivisible()
+    val itemTotal = (item.quantity * item.product.price).roundToInt()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -355,18 +369,54 @@ fun CartItemRow(
                     fontSize = 14.sp,
                     maxLines = 1
                 )
-                Text(
-                    text = item.product.unit,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                // Portion or Unit label
+                val portionText = when {
+                    item.portionLabel.isNotBlank() -> item.portionLabel
+                    isFractional -> item.product.formatQuantity(item.quantity)
+                    else -> "${item.quantity.toInt()} × ${item.product.unit}"
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isFractional) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE8F5E9))
+                                .clickable { showPortionDialog = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "$portionText ▾",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = portionText,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "₹${item.product.price.toInt()} each",
-                    fontSize = 12.sp,
-                    color = EmeraldGreenPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "₹$itemTotal",
+                        fontSize = 14.sp,
+                        color = EmeraldGreenPrimary,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "(₹${item.product.price.toInt()}/${item.product.unit})",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             // Stepper
@@ -375,7 +425,7 @@ fun CartItemRow(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(EmeraldContainer)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
             ) {
                 IconButton(
                     onClick = onDecrease,
@@ -389,12 +439,20 @@ fun CartItemRow(
                     )
                 }
 
+                val stepperDisplay = if (isFractional) {
+                    if (item.portionLabel.isNotBlank()) item.portionLabel else item.product.formatQuantity(item.quantity)
+                } else {
+                    "${item.quantity.toInt()}"
+                }
+
                 Text(
-                    text = "${item.quantity}",
+                    text = stepperDisplay,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     color = EmeraldGreenDark,
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                    modifier = Modifier
+                        .clickable(enabled = isFractional) { showPortionDialog = true }
+                        .padding(horizontal = 4.dp)
                 )
 
                 IconButton(
@@ -410,5 +468,16 @@ fun CartItemRow(
                 }
             }
         }
+    }
+
+    if (showPortionDialog && isFractional) {
+        PortionSelectionDialog(
+            product = item.product,
+            currentQuantity = item.quantity,
+            onDismiss = { showPortionDialog = false },
+            onSelectPortion = { fraction, label ->
+                onSetPortion?.invoke(fraction, label)
+            }
+        )
     }
 }

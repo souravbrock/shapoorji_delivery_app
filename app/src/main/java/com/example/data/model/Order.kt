@@ -29,9 +29,12 @@ data class OrderItem(
     val productName: String,
     val unit: String,
     val price: Double,
-    val quantity: Int
+    val quantity: Double = 1.0,
+    val portionLabel: String = ""
 ) {
     val total: Double get() = price * quantity
+    val displayQuantity: String
+        get() = if (portionLabel.isNotBlank()) portionLabel else if (quantity == quantity.toLong().toDouble()) "${quantity.toInt()}" else "$quantity"
 }
 
 @Entity(tableName = "orders")

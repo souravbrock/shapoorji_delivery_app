@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.data.model.Order
 import com.example.ui.admin.AdminDashboardScreen
+import com.example.ui.auth.AdminAuthGuard
+import com.example.ui.auth.WelcomeScreen
 import com.example.ui.components.GoogleAccountDialog
 import com.example.ui.customer.CartScreen
 import com.example.ui.customer.CheckoutScreen
@@ -76,6 +78,17 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             viewModel.toastMessage.value = null
         }
+    }
+
+    // Unauthenticated State Gate: If customer is not logged in, render Welcome Screen
+    if (!user.isGoogleSignedIn) {
+        WelcomeScreen(
+            onGoogleSignIn = { name, email, phone, tower, flat ->
+                viewModel.registerOrUpdateCustomer(name, email, phone, tower, flat)
+                backstack = listOf(AppScreen.Catalog)
+            }
+        )
+        return
     }
 
     // Sync admin mode toggle with screen
@@ -158,16 +171,26 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
                 )
             }
             is AppScreen.Admin -> {
-                AdminDashboardScreen(
-                    viewModel = viewModel,
+                // Authentication Logic Guard: strictly verifies if current user is souravbrock@gmail.com
+                // before rendering the AdminDashboardScreen component
+                AdminAuthGuard(
+                    currentUser = user,
                     onNavigateBackToCustomer = {
                         viewModel.setAdminMode(false)
                         navigateBack()
-                    },
-                    onViewOrderInvoice = { order ->
-                        navigateTo(AppScreen.Invoice(order))
                     }
-                )
+                ) {
+                    AdminDashboardScreen(
+                        viewModel = viewModel,
+                        onNavigateBackToCustomer = {
+                            viewModel.setAdminMode(false)
+                            navigateBack()
+                        },
+                        onViewOrderInvoice = { order ->
+                            navigateTo(AppScreen.Invoice(order))
+                        }
+                    )
+                }
             }
         }
     }
@@ -177,11 +200,13 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
         GoogleAccountDialog(
             currentUser = user,
             onDismiss = { showGoogleAccountDialog = false },
-            onSaveProfile = { name, email ->
-                viewModel.signInWithGoogle(email, name)
+            onSaveProfile = { name, email, phone, tower, flat ->
+                viewModel.registerOrUpdateCustomer(name, email, phone, tower, flat)
             },
             onSignOut = {
                 viewModel.signOut()
+                backstack = listOf(AppScreen.Catalog)
+                showGoogleAccountDialog = false
             }
         )
     }

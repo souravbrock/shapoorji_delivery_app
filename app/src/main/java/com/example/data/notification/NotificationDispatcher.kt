@@ -116,7 +116,7 @@ class NotificationDispatcher(
             appendLine("Payment Method: ${order.paymentMethod}")
             appendLine("==================================================")
             appendLine("Delivered exclusively inside Shapoorji Sukhobristi, Action Area III, Kolkata.")
-            appendLine("Store Contact: order@spdelivery.reddevils.co.in | +91 98765 43210")
+            appendLine("Store Contact: order@spdelivery.reddevils.co.in | +91-8442980101")
         }
 
         // 2. Real SMTP Email Dispatch
