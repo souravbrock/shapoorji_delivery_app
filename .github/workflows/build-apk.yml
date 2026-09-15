@@ -81,7 +81,7 @@ jobs:
         with:
           name: ${{ steps.rename_apk.outputs.version }}-apk
           path: ${{ steps.rename_apk.outputs.apk_path }}
-          retention-days: 30
+          retention-days: 60
 
       - name: Create GitHub Release (On Tag Push)
         if: startsWith(github.ref, 'refs/tags/v')
