@@ -13,6 +13,8 @@ import com.example.data.model.Review
 import com.example.data.model.ShapoorjiGeo
 import com.example.data.model.UserProfile
 import com.example.data.notification.NotificationDispatcher
+import com.example.data.notification.SmtpResult
+import com.example.data.notification.TelegramDispatchReport
 import com.example.data.repository.GroceryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -326,22 +328,87 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Telegram Bot Settings
-    fun updateTelegramSettings(token: String, adminChat: String, managerChat: String, staffChat: String) {
-        dispatcher.telegramBotToken = token
-        dispatcher.adminChatId = adminChat
-        dispatcher.managerChatId = managerChat
-        dispatcher.staffChatId = staffChat
-        toastMessage.value = "Telegram Bot alerts configured"
+    // Notification & Dispatcher Configuration States
+    val telegramBotToken = MutableStateFlow(dispatcher.telegramBotToken)
+    val adminChatIds = MutableStateFlow(dispatcher.adminChatIds)
+    val managerChatIds = MutableStateFlow(dispatcher.managerChatIds)
+    val staffChatIds = MutableStateFlow(dispatcher.staffChatIds)
+
+    val smtpHost = MutableStateFlow(dispatcher.smtpHost)
+    val smtpPort = MutableStateFlow(dispatcher.smtpPort.toString())
+    val smtpUsername = MutableStateFlow(dispatcher.smtpUsername)
+    val smtpPassword = MutableStateFlow(dispatcher.smtpPassword)
+    val senderEmail = MutableStateFlow(dispatcher.senderEmail)
+    val adminEmail = MutableStateFlow(dispatcher.adminEmail)
+
+    val isTestingTelegram = MutableStateFlow(false)
+    val isTestingEmail = MutableStateFlow(false)
+
+    fun updateAllNotificationSettings(
+        botToken: String,
+        adminChats: String,
+        managerChats: String,
+        staffChats: String,
+        host: String,
+        port: String,
+        username: String,
+        pass: String,
+        sender: String,
+        adminMail: String
+    ) {
+        dispatcher.telegramBotToken = botToken.trim()
+        dispatcher.adminChatIds = adminChats.trim()
+        dispatcher.managerChatIds = managerChats.trim()
+        dispatcher.staffChatIds = staffChats.trim()
+
+        dispatcher.smtpHost = host.trim()
+        dispatcher.smtpPort = port.trim().toIntOrNull() ?: 465
+        dispatcher.smtpUsername = username.trim()
+        dispatcher.smtpPassword = pass.trim()
+        dispatcher.senderEmail = sender.trim()
+        dispatcher.adminEmail = adminMail.trim()
+
+        telegramBotToken.value = dispatcher.telegramBotToken
+        adminChatIds.value = dispatcher.adminChatIds
+        managerChatIds.value = dispatcher.managerChatIds
+        staffChatIds.value = dispatcher.staffChatIds
+        smtpHost.value = dispatcher.smtpHost
+        smtpPort.value = dispatcher.smtpPort.toString()
+        smtpUsername.value = dispatcher.smtpUsername
+        smtpPassword.value = dispatcher.smtpPassword
+        senderEmail.value = dispatcher.senderEmail
+        adminEmail.value = dispatcher.adminEmail
+
+        toastMessage.value = "Saved Telegram & Email notification settings"
     }
 
-    fun sendTestTelegramAlert(onResult: (Boolean) -> Unit) {
+    fun sendTestTelegramAlert(onResult: (TelegramDispatchReport) -> Unit) {
         viewModelScope.launch {
-            val success = dispatcher.sendTestTelegramPing(
-                dispatcher.telegramBotToken,
-                dispatcher.adminChatId
-            )
-            onResult(success)
+            isTestingTelegram.value = true
+            try {
+                val report = dispatcher.sendTestTelegramPing()
+                toastMessage.value = "Telegram: ${report.successCount}/${report.totalCount} sent"
+                onResult(report)
+            } finally {
+                isTestingTelegram.value = false
+            }
+        }
+    }
+
+    fun sendTestEmailAlert(onResult: (SmtpResult) -> Unit) {
+        viewModelScope.launch {
+            isTestingEmail.value = true
+            try {
+                val result = dispatcher.sendTestEmailPing()
+                if (result.success) {
+                    toastMessage.value = "Test email sent successfully!"
+                } else {
+                    toastMessage.value = "Email dispatch failed: ${result.message}"
+                }
+                onResult(result)
+            } finally {
+                isTestingEmail.value = false
+            }
         }
     }
 }

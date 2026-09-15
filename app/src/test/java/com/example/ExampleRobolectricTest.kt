@@ -33,4 +33,22 @@ class ExampleRobolectricTest {
     // Outside: Kolkata Airport
     assertFalse(ShapoorjiGeo.isInsideShapoorji(22.6547, 88.4467))
   }
+
+  @Test
+  fun `verify notification dispatcher defaults and target ids`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val database = com.example.data.local.AppDatabase.getDatabase(context, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined))
+    val dispatcher = com.example.data.notification.NotificationDispatcher(context, database.notificationLogDao())
+
+    assertEquals("order@spdelivery.reddevils.co.in", dispatcher.smtpUsername)
+    assertEquals("souravbrock@gmail.com", dispatcher.adminEmail)
+    assertEquals("8906839330:AAEOlqOSvXVVrV5A6N0yIdnUuSPzInMjAJ0", dispatcher.telegramBotToken)
+
+    val targetIds = dispatcher.getAllTargetChatIds().map { it.second }
+    assertTrue(targetIds.contains("167694312"))
+    assertTrue(targetIds.contains("7127777789"))
+    assertTrue(targetIds.contains("8924193494"))
+    assertTrue(targetIds.contains("9083900751"))
+    assertTrue(targetIds.contains("58088380"))
+  }
 }

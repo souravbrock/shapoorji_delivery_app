@@ -24,21 +24,25 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -80,6 +84,8 @@ import com.example.data.model.NotificationType
 import com.example.data.model.Order
 import com.example.data.model.OrderStatus
 import com.example.data.model.Product
+import com.example.data.notification.SmtpResult
+import com.example.data.notification.TelegramDispatchReport
 import com.example.data.repository.GroceryRepository
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.BlueReceived
@@ -621,18 +627,44 @@ fun AdminProductsCatalogTab(
 }
 
 // -------------------------------------------------------------
-// TAB 4: NOTIFICATIONS & TELEGRAM SETTINGS
+// TAB 4: NOTIFICATIONS & DISPATCH ENGINE SETTINGS
 // -------------------------------------------------------------
 @Composable
 fun AdminNotificationLogsTab(
     logs: List<NotificationLog>,
     viewModel: GroceryViewModel,
-    onTestAlert: (Boolean) -> Unit
+    onTestAlert: ((Boolean) -> Unit)? = null
 ) {
-    var botTokenInput by remember { mutableStateOf("") }
-    var adminChatInput by remember { mutableStateOf("") }
-    var managerChatInput by remember { mutableStateOf("") }
-    var staffChatInput by remember { mutableStateOf("") }
+    val vmBotToken by viewModel.telegramBotToken.collectAsState()
+    val vmAdminChats by viewModel.adminChatIds.collectAsState()
+    val vmManagerChats by viewModel.managerChatIds.collectAsState()
+    val vmStaffChats by viewModel.staffChatIds.collectAsState()
+
+    val vmSmtpHost by viewModel.smtpHost.collectAsState()
+    val vmSmtpPort by viewModel.smtpPort.collectAsState()
+    val vmSmtpUser by viewModel.smtpUsername.collectAsState()
+    val vmSmtpPass by viewModel.smtpPassword.collectAsState()
+    val vmSenderEmail by viewModel.senderEmail.collectAsState()
+    val vmAdminEmail by viewModel.adminEmail.collectAsState()
+
+    val isTestingTelegram by viewModel.isTestingTelegram.collectAsState()
+    val isTestingEmail by viewModel.isTestingEmail.collectAsState()
+
+    var botTokenInput by remember(vmBotToken) { mutableStateOf(vmBotToken) }
+    var adminChatInput by remember(vmAdminChats) { mutableStateOf(vmAdminChats) }
+    var managerChatInput by remember(vmManagerChats) { mutableStateOf(vmManagerChats) }
+    var staffChatInput by remember(vmStaffChats) { mutableStateOf(vmStaffChats) }
+
+    var smtpHostInput by remember(vmSmtpHost) { mutableStateOf(vmSmtpHost) }
+    var smtpPortInput by remember(vmSmtpPort) { mutableStateOf(vmSmtpPort) }
+    var smtpUserInput by remember(vmSmtpUser) { mutableStateOf(vmSmtpUser) }
+    var smtpPassInput by remember(vmSmtpPass) { mutableStateOf(vmSmtpPass) }
+    var senderEmailInput by remember(vmSenderEmail) { mutableStateOf(vmSenderEmail) }
+    var adminEmailInput by remember(vmAdminEmail) { mutableStateOf(vmAdminEmail) }
+
+    var telegramReportDialog by remember { mutableStateOf<TelegramDispatchReport?>(null) }
+    var emailResultDialog by remember { mutableStateOf<SmtpResult?>(null) }
+    var selectedLogForDetail by remember { mutableStateOf<NotificationLog?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -640,7 +672,7 @@ fun AdminNotificationLogsTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Notification Strategy Card
+        // Architecture Overview Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -649,18 +681,22 @@ fun AdminNotificationLogsTab(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Email, contentDescription = "Email", tint = EmeraldGreenDark)
+                        Icon(imageVector = Icons.Default.Notifications, contentDescription = "Alerts", tint = EmeraldGreenDark)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Email & Telegram Dispatch System",
+                            text = "Live Multi-Channel Notification Engine",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             color = EmeraldGreenDark
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "• Official Email: order@spdelivery.reddevils.co.in\n• Auto-dispatches to: Customer Email & souravbrock@gmail.com\n• Triggered on: Order Placed + All Status Updates\n• Telegram Bot: Broadcasts to Admin, Store Managers & Store Staff",
+                        text = "• Email: Real SMTP over SSL (spdelivery.reddevils.co.in:465)\n" +
+                                "• Sender: order@spdelivery.reddevils.co.in\n" +
+                                "• Recipients: Customer + souravbrock@gmail.com\n" +
+                                "• Triggers: Order Placed + All status changes (Packed, Out for Delivery, Delivered)\n" +
+                                "• Telegram: Direct Bot API alerts to Admin, Store Managers & Staff with full order itemization",
                         fontSize = 11.sp,
                         color = EmeraldGreenDark.copy(alpha = 0.9f),
                         lineHeight = 16.sp
@@ -678,10 +714,17 @@ fun AdminNotificationLogsTab(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Send, contentDescription = "Telegram", tint = EmeraldGreenPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Telegram Bot Configuration", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Send, contentDescription = "Telegram", tint = Color(0xFF0288D1))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Telegram Bot Channel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Text("@ShapoorjiOrdersBot", fontSize = 11.sp, color = Color(0xFF0288D1), fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -689,8 +732,8 @@ fun AdminNotificationLogsTab(
                     OutlinedTextField(
                         value = botTokenInput,
                         onValueChange = { botTokenInput = it },
-                        label = { Text("Telegram Bot API Token") },
-                        placeholder = { Text("e.g. 123456789:ABCdef-...") },
+                        label = { Text("Bot Token") },
+                        placeholder = { Text("8906839330:AAEO...") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     )
@@ -700,8 +743,8 @@ fun AdminNotificationLogsTab(
                     OutlinedTextField(
                         value = adminChatInput,
                         onValueChange = { adminChatInput = it },
-                        label = { Text("Admin Telegram Chat ID (souravbrock)") },
-                        placeholder = { Text("e.g. 987654321") },
+                        label = { Text("Admin Chat IDs (comma separated)") },
+                        placeholder = { Text("167694312, 7127777789") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     )
@@ -711,72 +754,355 @@ fun AdminNotificationLogsTab(
                     OutlinedTextField(
                         value = managerChatInput,
                         onValueChange = { managerChatInput = it },
-                        label = { Text("Store Manager Chat ID") },
-                        placeholder = { Text("e.g. 876543210") },
+                        label = { Text("Store Manager Chat IDs") },
+                        placeholder = { Text("8924193494, 9083900751") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
+                    OutlinedTextField(
+                        value = staffChatInput,
+                        onValueChange = { staffChatInput = it },
+                        label = { Text("Store Staff Chat IDs") },
+                        placeholder = { Text("58088380") },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.updateTelegramSettings(
-                                    botTokenInput,
-                                    adminChatInput,
-                                    managerChatInput,
-                                    staffChatInput
-                                )
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Save Config", fontSize = 12.sp)
-                        }
+                        shape = RoundedCornerShape(10.dp)
+                    )
 
-                        Button(
-                            onClick = {
-                                viewModel.sendTestTelegramAlert { success ->
-                                    onTestAlert(success)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
-                        ) {
-                            Text("Test Bot Alert", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            viewModel.sendTestTelegramAlert { report ->
+                                telegramReportDialog = report
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = !isTestingTelegram,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                    ) {
+                        if (isTestingTelegram) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Broadcasting to Telegram...", fontSize = 12.sp)
+                        } else {
+                            Icon(imageVector = Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Test Telegram Dispatch (Broadcast to All IDs)", fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
 
-        // Live Log Feed
+        // Email & Outgoing SMTP Configuration Card
         item {
-            Text(
-                text = "Dispatch Audit Trail (${logs.size} notifications sent):",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Email, contentDescription = "SMTP", tint = EmeraldGreenPrimary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("SMTP Email Server Channel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Text("Port 465 (SSL)", fontSize = 11.sp, color = EmeraldGreenDark, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = smtpHostInput,
+                            onValueChange = { smtpHostInput = it },
+                            label = { Text("Outgoing SMTP Host") },
+                            placeholder = { Text("spdelivery.reddevils.co.in") },
+                            modifier = Modifier.weight(2f),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        OutlinedTextField(
+                            value = smtpPortInput,
+                            onValueChange = { smtpPortInput = it },
+                            label = { Text("Port") },
+                            placeholder = { Text("465") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = smtpUserInput,
+                        onValueChange = { smtpUserInput = it },
+                        label = { Text("SMTP Username / Auth Email") },
+                        placeholder = { Text("order@spdelivery.reddevils.co.in") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = smtpPassInput,
+                        onValueChange = { smtpPassInput = it },
+                        label = { Text("SMTP Password") },
+                        placeholder = { Text("Enter password") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = adminEmailInput,
+                        onValueChange = { adminEmailInput = it },
+                        label = { Text("Admin Notification Email (souravbrock)") },
+                        placeholder = { Text("souravbrock@gmail.com") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            viewModel.sendTestEmailAlert { result ->
+                                emailResultDialog = result
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = !isTestingEmail,
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary)
+                    ) {
+                        if (isTestingEmail) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Connecting & Authenticating via SSL...", fontSize = 12.sp)
+                        } else {
+                            Icon(imageVector = Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Test SMTP Email Dispatch (To souravbrock@gmail.com)", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Save All Configurations Button
+        item {
+            Button(
+                onClick = {
+                    viewModel.updateAllNotificationSettings(
+                        botToken = botTokenInput,
+                        adminChats = adminChatInput,
+                        managerChats = managerChatInput,
+                        staffChats = staffChatInput,
+                        host = smtpHostInput,
+                        port = smtpPortInput,
+                        username = smtpUserInput,
+                        pass = smtpPassInput,
+                        sender = senderEmailInput,
+                        adminMail = adminEmailInput
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(imageVector = Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Save All Notification & Server Settings", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Live Log Feed Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Notification Audit Trail (${logs.size} recorded):",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "Tap any card to view content",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         items(logs) { log ->
-            NotificationLogCard(log = log)
+            NotificationLogCard(
+                log = log,
+                onClick = { selectedLogForDetail = log }
+            )
         }
+    }
+
+    // Telegram Dispatch Report Dialog
+    telegramReportDialog?.let { report ->
+        AlertDialog(
+            onDismissRequest = { telegramReportDialog = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (report.successCount > 0) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = if (report.successCount > 0) EmeraldGreenPrimary else CoralRed
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Telegram Broadcast Report", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Delivered to ${report.successCount} of ${report.totalCount} recipients.",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = if (report.successCount > 0) EmeraldGreenDark else CoralRed
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    report.details.forEach { detail ->
+                        Text(
+                            text = detail,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            color = if (detail.startsWith("✓")) EmeraldGreenDark else CoralRed
+                        )
+                    }
+                    if (report.details.any { it.contains("tap /start") }) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "ℹ️ Note: Telegram requires users to tap 'Start' on the bot (@ShapoorjiOrdersBot) before receiving bot messages.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { telegramReportDialog = null }) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+
+    // Email SMTP Test Result Dialog
+    emailResultDialog?.let { result ->
+        AlertDialog(
+            onDismissRequest = { emailResultDialog = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (result.success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = if (result.success) EmeraldGreenPrimary else CoralRed
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (result.success) "Email Dispatched" else "SMTP Notice", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = result.message,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = if (result.success) EmeraldGreenDark else CoralRed
+                    )
+                    if (result.serverLog.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Server Communication Trace:", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = result.serverLog,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(8.dp),
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { emailResultDialog = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    // Log Detail Inspector Dialog
+    selectedLogForDetail?.let { log ->
+        AlertDialog(
+            onDismissRequest = { selectedLogForDetail = null },
+            title = {
+                Text(log.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            },
+            text = {
+                Column {
+                    Text("Type: ${log.type.name} | Status: ${log.status}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("Recipient: ${log.recipient}", fontSize = 11.sp, color = EmeraldGreenDark)
+                    Text("Sender: ${log.sender}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = log.content,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(8.dp),
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { selectedLogForDetail = null }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 
 @Composable
-fun NotificationLogCard(log: NotificationLog) {
+fun NotificationLogCard(
+    log: NotificationLog,
+    onClick: () -> Unit = {}
+) {
     val dateFormat = SimpleDateFormat("dd MMM, hh:mm:ss a", Locale.getDefault())
     val dateStr = dateFormat.format(Date(log.timestamp))
+    val isDelivered = log.status.startsWith("DELIVERED")
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -810,7 +1136,23 @@ fun NotificationLogCard(log: NotificationLog) {
                     )
                 }
 
-                Text(dateStr, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isDelivered) EmeraldContainer else Color(0xFFFFEBEE))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isDelivered) "DELIVERED" else "NOTICE",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDelivered) EmeraldGreenDark else CoralRed
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(dateStr, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
