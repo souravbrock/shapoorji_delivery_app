@@ -77,17 +77,17 @@ fun ProductCard(
     val isFractional = product.allowFractional && product.isUnitDivisible()
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Top Image Box with Badges
+        Column(modifier = Modifier.padding(10.dp)) {
+            // Top Image Box with Badges (quick-commerce style: big visual, minimal chrome)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 AsyncImage(
@@ -97,7 +97,7 @@ fun ProductCard(
                         .build(),
                     contentDescription = product.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(130.dp)
+                    modifier = Modifier.fillMaxWidth().height(150.dp)
                 )
 
                 // Favorite Heart Button

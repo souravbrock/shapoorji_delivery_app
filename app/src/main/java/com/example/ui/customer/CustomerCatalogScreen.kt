@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
@@ -96,8 +95,11 @@ fun CustomerCatalogScreen(
         "Daily Essentials",
         "Vegetables",
         "Fruits",
-        "Dairy & Breakfast",
-        "Staples & Atta"
+        "Dairy",
+        "Rice",
+        "Grocery",
+        "Bakery",
+        "Beverages"
     )
 
     val totalCartItems = cartMap.values.sum()
@@ -374,70 +376,6 @@ fun CustomerCatalogScreen(
                         ),
                         shape = RoundedCornerShape(20.dp)
                     )
-                }
-            }
-
-            // Service Guarantee Banner
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "⚡ 15-25 Min Doorstep Delivery",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = EmeraldGreenDark
-                            )
-                            Text(
-                                text = "Fresh morning rates updated daily for Shukhobrishti residents",
-                                fontSize = 10.sp,
-                                color = EmeraldGreenDark.copy(alpha = 0.8f)
-                            )
-                        }
-                        Text(
-                            text = "Zero Fake Orders",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldGreenPrimary,
-                            modifier = Modifier
-                                .background(Color.White, RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "Helpline",
-                            tint = EmeraldGreenDark,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Admin & Orders Hotline: +91-8442980101",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldGreenDark
-                        )
-                    }
                 }
             }
 
