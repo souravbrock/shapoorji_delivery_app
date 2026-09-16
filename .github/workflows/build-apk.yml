@@ -4,19 +4,19 @@ on:
   push:
     branches: [ main, master ]
     tags:
-      - 'v*' # Trigger on version tags like v1.0.0, v1.0.1
+      - 'v*' # Trigger on version tags like v1.1.0, v1.2.0
   pull_request:
     branches: [ main, master ]
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
     inputs:
       version_tag:
-        description: 'Version label for this build (e.g. v1.0.1)'
+        description: 'Version label for this build (e.g. v1.1.0)'
         required: false
         default: 'manual-build'
 
 jobs:
   build:
-    name: Build Test APK
+    name: Build signed APK + latest.json
     runs-on: ubuntu-latest
     env:
       JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
@@ -48,6 +48,31 @@ jobs:
             echo "Generated new debug.keystore"
           fi
 
+      # Release keystore comes from repo secret ANDROID_KEYSTORE_BASE64.
+      # Required secrets for signed GitHub Releases / IzzyOnDroid / Obtainium:
+      #   ANDROID_KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+      # If absent, release builds fall back to the debug key (PRs/forks only —
+      # NEVER publish those as releases; signatures must stay stable).
+      - name: Restore Release Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.keystore"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=$STORE_PASSWORD" >> $GITHUB_ENV
+            echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+            echo "HAS_RELEASE_KEY=true" >> $GITHUB_ENV
+            echo "Release keystore restored."
+          else
+            echo "HAS_RELEASE_KEY=false" >> $GITHUB_ENV
+            echo "::warning::ANDROID_KEYSTORE_BASE64 not set — release APK will use debug fallback key. Do not publish as a release."
+          fi
+
       - name: Prepare Secrets & Environment
         run: |
           # Create placeholder .env if not present
@@ -55,42 +80,116 @@ jobs:
             touch .env
           fi
 
-      - name: Build Debug APK
+      - name: Read app version
+        id: app_version
         run: |
-          gradle :app:assembleDebug -Djava.awt.headless=true --stacktrace
+          VERSION_CODE=$(grep -m1 'versionCode' app/build.gradle.kts | grep -o '[0-9]\+')
+          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          APP_ID=$(grep -m1 'applicationId' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
+          echo "App $APP_ID v$VERSION_NAME ($VERSION_CODE)"
 
-      - name: Rename APK for Versioning
-        id: rename_apk
+      - name: Build Debug + Release APKs
+        run: |
+          gradle :app:assembleDebug :app:assembleRelease -Djava.awt.headless=true --stacktrace
+
+      - name: Verify APK signatures
+        run: |
+          ls -lh app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -n1 || true)
+          if [ -n "$APKSIGNER" ]; then
+            echo "== release cert =="
+            "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk || true
+          fi
+          if [ "${HAS_RELEASE_KEY}" = "true" ]; then
+            keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" 2>/dev/null | grep -E "Alias|SHA256" || true
+          fi
+
+      - name: Rename APKs + generate latest.json
+        id: package
+        env:
+          VERSION_CODE: ${{ steps.app_version.outputs.version_code }}
+          VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
+          APP_ID: ${{ steps.app_version.outputs.app_id }}
         run: |
           BUILD_DATE=$(date +'%Y%m%d')
           GIT_HASH=$(git rev-parse --short HEAD)
           TAG_OR_REF="${{ github.ref_name }}"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version_tag }}"
+            LABEL="${{ github.event.inputs.version_tag }}"
+            [ "$LABEL" = "manual-build" ] && LABEL="v${VERSION_NAME}-${GIT_HASH}"
           elif [[ "$TAG_OR_REF" == v* ]]; then
-            VERSION="$TAG_OR_REF"
+            LABEL="$TAG_OR_REF"
           else
-            VERSION="${TAG_OR_REF}-${GIT_HASH}"
+            LABEL="v${VERSION_NAME}-${GIT_HASH}"
           fi
-          
-          OUTPUT_NAME="Shapoorji-Delivery-${VERSION}-${BUILD_DATE}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "$OUTPUT_NAME"
-          echo "apk_path=$OUTPUT_NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Generated: $OUTPUT_NAME"
+          # Stable, Obtainium/Izzy-friendly asset name (no spaces):
+          RELEASE_APK="ShapoorjiDelivery-${LABEL}-${BUILD_DATE}.apk"
+          DEBUG_APK="ShapoorjiDelivery-${LABEL}-${BUILD_DATE}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RELEASE_APK"
+          cp app/build/outputs/apk/debug/app-debug.apk "$DEBUG_APK"
+          echo "release_apk=$RELEASE_APK" >> $GITHUB_OUTPUT
+          echo "debug_apk=$DEBUG_APK" >> $GITHUB_OUTPUT
+          echo "label=$LABEL" >> $GITHUB_OUTPUT
 
-      - name: Upload APK as Workflow Artifact
+          # SHA-256 for latest.json (used by subdomain mirror + integrity checks)
+          SHA256=$(sha256sum "$RELEASE_APK" | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+          # apkUrl is predictable only for tag releases; otherwise leave a
+          # template pointing at the latest release for the subdomain mirror.
+          if [[ "$LABEL" == v* ]] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            APK_URL="https://github.com/${{ github.repository }}/releases/download/${LABEL}/${RELEASE_APK}"
+          else
+            APK_URL="https://github.com/${{ github.repository }}/releases/latest/download/${RELEASE_APK}"
+          fi
+
+          python3 - "$RELEASE_APK" <<EOF
+          import json, sys, datetime
+          apk = sys.argv[1]
+          data = {
+            "package": "$APP_ID",
+            "versionCode": int("$VERSION_CODE"),
+            "versionName": "$VERSION_NAME",
+            "releaseTag": "$LABEL",
+            "apkFileName": apk,
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "minSdk": 24,
+            "targetSdk": 36,
+            "updatedAt": datetime.date.today().isoformat(),
+            "releaseNotesUrl": "https://github.com/${{ github.repository }}/releases/tag/$LABEL",
+            "obtainium": {
+              "source": "github",
+              "repo": "${{ github.repository }}",
+              "apkFilter": "ShapoorjiDelivery-.*\\.apk"
+            },
+            "notes": "Install as in-place upgrade over previous build. Same signing key is used for every release so Obtainium / IzzyOnDroid updates never require uninstall."
+          }
+          open("latest.json", "w").write(json.dumps(data, indent=2))
+          print(open("latest.json").read())
+          EOF
+          echo "Generated: $RELEASE_APK, $DEBUG_APK, latest.json"
+
+      - name: Upload APKs + latest.json as Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.rename_apk.outputs.version }}-apk
-          path: ${{ steps.rename_apk.outputs.apk_path }}
-          retention-days: 60
+          name: ${{ steps.package.outputs.label }}-dist
+          path: |
+            ${{ steps.package.outputs.release_apk }}
+            ${{ steps.package.outputs.debug_apk }}
+            latest.json
+          retention-days: 90
 
       - name: Create GitHub Release (On Tag Push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.rename_apk.outputs.apk_path }}
+          files: |
+            ${{ steps.package.outputs.release_apk }}
+            latest.json
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false

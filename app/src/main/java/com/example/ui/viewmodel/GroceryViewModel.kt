@@ -737,11 +737,16 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // App Update & Upgrade Engine
+    // App Update & Upgrade Engine — checks GitHub Releases latest.json
+    // (+ spd.reddevils.co.in mirror), same feed Obtainium/IzzyOnDroid use.
     fun checkForAppUpdates() {
         showUpdateDialog.value = true
         viewModelScope.launch {
-            appUpdateManager.checkForUpdates(forcedCheck = true)
+            try {
+                appUpdateManager.checkForUpdatesFromGitHub()
+            } catch (e: Exception) {
+                appUpdateManager.checkForUpdates(forcedCheck = true)
+            }
         }
     }
 

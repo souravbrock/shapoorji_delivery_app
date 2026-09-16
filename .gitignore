@@ -16,3 +16,11 @@
 local.properties
 .env
 debug.keystore
+# Release signing + generated distribution files (CI builds these; never commit keys)
+release.keystore
+my-upload-key.jks
+*.jks
+*.base64
+keystore.base64
+latest.json
+ShapoorjiDelivery-*.apk

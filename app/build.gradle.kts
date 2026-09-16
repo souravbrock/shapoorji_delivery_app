@@ -23,19 +23,39 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  // Release signing is CI-friendly:
+  // - Local: uses my-upload-key.jks if present (see DISTRIBUTION.md).
+  // - CI: workflow decodes ANDROID_KEYSTORE_BASE64 to $rootDir/release.keystore
+  //   and exports KEYSTORE_PATH, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
+  // - If no release key is present, configuration still succeeds and release
+  //   builds fall back to the debug key (PRs / forks). GitHub Releases and
+  //   IzzyOnDroid / Obtainium MUST use the real release key (same key forever).
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
-    }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
+    }
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_PATH")
+        ?: "${rootDir}/release.keystore"
+      val legacyPath = "${rootDir}/my-upload-key.jks"
+      val resolved = when {
+        file(keystorePath).exists() -> file(keystorePath)
+        file(legacyPath).exists() -> file(legacyPath)
+        else -> file("${rootDir}/debug.keystore") // placeholder so Gradle configuration never fails
+      }
+      storeFile = resolved
+      storePassword = System.getenv("STORE_PASSWORD") ?: "android"
+      keyAlias = System.getenv("KEY_ALIAS") ?: System.getenv("KEYSTORE_ALIAS") ?: "upload"
+      // KEY_ALIAS fallback: legacy builds only set KEY_PASSWORD and assumed alias "upload".
+      // If the placeholder debug keystore is in use, fall back to its password.
+      keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+      // When falling back to the debug keystore, align alias/password with it.
+      if (!file(keystorePath).exists() && !file(legacyPath).exists()) {
+        keyAlias = "androiddebugkey"
+      }
     }
   }
 
