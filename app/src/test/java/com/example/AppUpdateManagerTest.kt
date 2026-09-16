@@ -19,9 +19,9 @@ class AppUpdateManagerTest {
         val context = RuntimeEnvironment.getApplication()
         val updateManager = AppUpdateManager(context)
 
-        // Version Code must be >= 2 for the in-place upgrade path
-        assertTrue("versionCode must be >= 2", updateManager.currentVersionCode >= 2)
-        assertEquals("1.1.0", updateManager.currentVersionName)
+        // Version Code must be >= 3 for the in-place upgrade path
+        assertTrue("versionCode must be >= 3", updateManager.currentVersionCode >= 3)
+        assertEquals("1.2.0", updateManager.currentVersionName)
     }
 
     @Test
@@ -36,7 +36,7 @@ class AppUpdateManagerTest {
         val status = updateManager.updateStatus.value
         assertTrue(status is UpdateStatus.UpToDate)
         if (status is UpdateStatus.UpToDate) {
-            assertEquals("1.1.0", status.versionName)
+            assertEquals("1.2.0", status.versionName)
         }
     }
 

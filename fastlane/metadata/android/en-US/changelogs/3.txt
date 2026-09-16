@@ -1,0 +1,1 @@
+v1.2.0: catalog synced with website (47 products, website images and prices), top banner removed, quick-commerce card refresh.
