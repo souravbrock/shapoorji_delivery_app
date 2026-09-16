@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.auth.AuthManager
+import com.example.data.firestore.FirestoreProductService
+import com.example.data.firestore.FirestoreSyncState
 import com.example.data.local.AppDatabase
 import com.example.data.model.CartItem
 import com.example.data.model.Order
@@ -18,6 +20,9 @@ import com.example.data.notification.SmtpResult
 import com.example.data.notification.TelegramDispatchReport
 import com.example.data.repository.GroceryRepository
 import com.example.data.repository.SheetImportResult
+import com.example.data.sync.CentralCatalogSyncManager
+import com.example.data.sync.CentralSyncResult
+import com.example.data.sync.GitHubPublishResult
 import com.example.data.update.AppUpdateManager
 import com.example.data.update.UpdateStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +42,7 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     val showUpdateDialog = MutableStateFlow(false)
     private val database = AppDatabase.getDatabase(application, viewModelScope)
     private val dispatcher = NotificationDispatcher(application, database.notificationLogDao())
+    val firestoreService = FirestoreProductService.getInstance(application)
     val repository = GroceryRepository(
         productDao = database.productDao(),
         orderDao = database.orderDao(),
@@ -44,12 +50,44 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         favoriteDao = database.favoriteDao(),
         notificationLogDao = database.notificationLogDao(),
         cartDao = database.cartDao(),
-        dispatcher = dispatcher
+        dispatcher = dispatcher,
+        firestoreService = firestoreService
     )
+
+    // Centralized Firestore Product Database State
+    val firestoreSyncState: StateFlow<FirestoreSyncState> = firestoreService.syncState
+    val firestoreLastSyncSummary: StateFlow<String> = firestoreService.lastSyncSummary
+    val firestoreLastSyncTimestamp: StateFlow<Long> = firestoreService.lastSyncTimestamp
+    val isFirestoreMigrating = MutableStateFlow(false)
+    val firestoreActionMessage = MutableStateFlow<String?>(null)
+    val firestoreProjectId = MutableStateFlow(firestoreService.customProjectId)
+
+    // Central Catalog Sync & GitHub Publishing Engine
+    val centralSyncManager = CentralCatalogSyncManager(application, repository.productDaoInstance)
+    val isSyncingCentral = MutableStateFlow(false)
+    val isPublishingToGitHub = MutableStateFlow(false)
+    val centralSyncResult = MutableStateFlow<CentralSyncResult?>(null)
+    val gitHubPublishResult = MutableStateFlow<GitHubPublishResult?>(null)
+
+    val centralSyncUrl = MutableStateFlow(centralSyncManager.centralSyncUrl)
+    val lastSyncSummary = MutableStateFlow(centralSyncManager.lastSyncSummary)
+    val isAutoSyncEnabled = MutableStateFlow(centralSyncManager.isAutoSyncEnabled)
 
     init {
         viewModelScope.launch {
             repository.syncOfficialCatalog()
+            // Auto-sync with central GitHub / remote repository on launch
+            if (centralSyncManager.isAutoSyncEnabled && centralSyncManager.centralSyncUrl.isNotBlank()) {
+                try {
+                    val result = centralSyncManager.fetchAndSyncCatalog()
+                    if (result.success) {
+                        centralSyncResult.value = result
+                        refreshCentralSyncState()
+                    }
+                } catch (_: Exception) {
+                    // Retain local offline Room database if remote is not reachable
+                }
+            }
         }
     }
 
@@ -442,6 +480,97 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         sheetImportResult.value = null
     }
 
+    // Central Catalog Sync & GitHub Publishing Methods
+    fun refreshCentralSyncState() {
+        centralSyncUrl.value = centralSyncManager.centralSyncUrl
+        lastSyncSummary.value = centralSyncManager.lastSyncSummary
+        isAutoSyncEnabled.value = centralSyncManager.isAutoSyncEnabled
+    }
+
+    fun syncWithCentralCloud(targetUrl: String? = null, onComplete: ((CentralSyncResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isSyncingCentral.value = true
+            try {
+                // Pull from centralized Firestore first to get instant live rates & photos
+                repository.pullFromFirestore()
+
+                val result = centralSyncManager.fetchAndSyncCatalog(targetUrl)
+                centralSyncResult.value = result
+                refreshCentralSyncState()
+                if (result.success) {
+                    toastMessage.value = "Central sync complete: ${result.updatedCount} photos updated, ${result.addedCount} items added"
+                } else {
+                    toastMessage.value = result.message
+                }
+                onComplete?.invoke(result)
+            } finally {
+                isSyncingCentral.value = false
+            }
+        }
+    }
+
+    fun pushCatalogToGitHubGist(token: String, gistId: String?, onComplete: ((GitHubPublishResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isPublishingToGitHub.value = true
+            try {
+                val currentProducts = allProducts.value
+                val result = centralSyncManager.pushToGitHubGist(token, gistId, currentProducts)
+                gitHubPublishResult.value = result
+                refreshCentralSyncState()
+                if (result.success) {
+                    toastMessage.value = "Catalog published to GitHub Gist successfully!"
+                } else {
+                    toastMessage.value = result.message
+                }
+                onComplete?.invoke(result)
+            } finally {
+                isPublishingToGitHub.value = false
+            }
+        }
+    }
+
+    fun pushCatalogToGitHubRepo(token: String, ownerRepo: String, path: String = "catalog.json", branch: String = "main", onComplete: ((GitHubPublishResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isPublishingToGitHub.value = true
+            try {
+                val currentProducts = allProducts.value
+                val result = centralSyncManager.pushToGitHubRepo(token, ownerRepo, path, branch, currentProducts)
+                gitHubPublishResult.value = result
+                refreshCentralSyncState()
+                if (result.success) {
+                    toastMessage.value = "Catalog committed to GitHub repository successfully!"
+                } else {
+                    toastMessage.value = result.message
+                }
+                onComplete?.invoke(result)
+            } finally {
+                isPublishingToGitHub.value = false
+            }
+        }
+    }
+
+    fun saveCentralSyncSettings(
+        url: String,
+        autoSync: Boolean,
+        gistId: String? = null,
+        repo: String? = null,
+        path: String? = null,
+        token: String? = null
+    ) {
+        centralSyncManager.centralSyncUrl = url
+        centralSyncManager.isAutoSyncEnabled = autoSync
+        if (!gistId.isNullOrBlank()) centralSyncManager.githubGistId = gistId
+        if (!repo.isNullOrBlank()) centralSyncManager.githubRepo = repo
+        if (!path.isNullOrBlank()) centralSyncManager.githubFilePath = path
+        if (!token.isNullOrBlank()) centralSyncManager.githubToken = token
+        refreshCentralSyncState()
+        toastMessage.value = "Central sync settings saved."
+    }
+
+    fun exportCatalogJson(): String = centralSyncManager.exportCatalogAsJson(allProducts.value)
+
+    fun exportCatalogCsv(): String = centralSyncManager.exportCatalogAsCsv(allProducts.value)
+
     // Admin: Update Product (full object)
     fun updateProduct(product: Product) {
         viewModelScope.launch {
@@ -624,5 +753,56 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     fun dismissUpdateDialog() {
         showUpdateDialog.value = false
         appUpdateManager.dismissUpdate()
+    }
+
+    // Firestore Centralized Product Database Actions
+    fun migrateAllProductsToFirestore() {
+        viewModelScope.launch {
+            isFirestoreMigrating.value = true
+            try {
+                val result = repository.migrateAllToFirestore()
+                if (result.isSuccess) {
+                    val count = result.getOrNull() ?: 0
+                    toastMessage.value = "Migrated $count products to Firestore"
+                    firestoreActionMessage.value = "Successfully migrated $count products to centralized Firestore!"
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    toastMessage.value = "Firestore migration failed: $error"
+                    firestoreActionMessage.value = "Migration failed: $error"
+                }
+            } finally {
+                isFirestoreMigrating.value = false
+            }
+        }
+    }
+
+    fun syncFromFirestore() {
+        viewModelScope.launch {
+            isFirestoreMigrating.value = true
+            try {
+                val result = repository.pullFromFirestore()
+                if (result.isSuccess) {
+                    val count = result.getOrNull() ?: 0
+                    toastMessage.value = "Synced $count products from Firestore"
+                    firestoreActionMessage.value = "Synced $count products from centralized Firestore"
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    toastMessage.value = "Sync error: $error"
+                    firestoreActionMessage.value = "Sync error: $error"
+                }
+            } finally {
+                isFirestoreMigrating.value = false
+            }
+        }
+    }
+
+    fun updateFirestoreProjectId(projectId: String) {
+        firestoreService.customProjectId = projectId
+        firestoreProjectId.value = firestoreService.customProjectId
+        toastMessage.value = "Updated Firestore project ID: $projectId"
+    }
+
+    fun clearFirestoreActionMessage() {
+        firestoreActionMessage.value = null
     }
 }

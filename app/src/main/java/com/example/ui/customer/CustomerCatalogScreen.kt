@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
@@ -35,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.firestore.FirestoreSyncState
 import com.example.data.model.Product
 import com.example.ui.components.ProductCard
 import com.example.ui.components.ProductReviewsSheet
@@ -83,6 +86,8 @@ fun CustomerCatalogScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTower by viewModel.selectedTower.collectAsState()
+    val isSyncingCentral by viewModel.isSyncingCentral.collectAsState()
+    val firestoreSyncState by viewModel.firestoreSyncState.collectAsState()
 
     var reviewProductTarget by remember { mutableStateOf<Product?>(null) }
 
@@ -223,11 +228,53 @@ fun CustomerCatalogScreen(
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFFE8F5E9) else Color(0xFFF1F8E9))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFF2E7D32) else EmeraldGreenPrimary)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (firestoreSyncState is FirestoreSyncState.Connected) "Live Rates" else "Synced",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFF1B5E20) else EmeraldGreenDark
+                                )
+                            }
+                        }
                     }
                 }
 
-                // Action Icons: Favorites, Tracking, Google User, Admin Toggle
+                // Action Icons: Sync, Favorites, Tracking, Google User, Admin Toggle
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { viewModel.syncWithCentralCloud() },
+                        enabled = !isSyncingCentral
+                    ) {
+                        if (isSyncingCentral) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = EmeraldGreenPrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = "Sync latest produce catalog",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     IconButton(onClick = onNavigateToFavorites) {
                         Icon(
                             imageVector = Icons.Default.Favorite,

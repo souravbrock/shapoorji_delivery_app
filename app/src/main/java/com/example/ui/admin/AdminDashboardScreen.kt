@@ -89,7 +89,9 @@ import coil.compose.AsyncImage
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.ui.text.TextStyle
+import com.example.data.firestore.FirestoreSyncState
 import com.example.data.repository.SheetImportResult
 import com.example.data.model.NotificationLog
 import com.example.data.model.NotificationType
@@ -130,6 +132,8 @@ fun AdminDashboardScreen(
 
     var showAddProductDialog by remember { mutableStateOf(false) }
     var showImportSheetDialog by remember { mutableStateOf(false) }
+    var showGitHubSyncDialog by remember { mutableStateOf(false) }
+    var showFirestoreDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
     val sheetImportResult by viewModel.sheetImportResult.collectAsState()
 
@@ -258,11 +262,14 @@ fun AdminDashboardScreen(
                 )
                 2 -> AdminProductsCatalogTab(
                     products = products,
+                    viewModel = viewModel,
                     onEditProduct = { editingProduct = it },
                     onDeleteProduct = { viewModel.deleteProduct(it) },
                     onAddClick = { showAddProductDialog = true },
                     onResetOfficial = { viewModel.resetToOfficialCatalog() },
-                    onImportSheetClick = { showImportSheetDialog = true }
+                    onImportSheetClick = { showImportSheetDialog = true },
+                    onGitHubSyncClick = { showGitHubSyncDialog = true },
+                    onFirestoreClick = { showFirestoreDialog = true }
                 )
                 3 -> AdminNotificationLogsTab(
                     logs = logs,
@@ -322,7 +329,25 @@ fun AdminDashboardScreen(
                 viewModel.importSheetData(sheetText)
             },
             importResult = sheetImportResult,
-            onClearResult = { viewModel.clearSheetImportResult() }
+            onClearResult = { viewModel.clearSheetImportResult() },
+            onOpenGitHubSync = {
+                showImportSheetDialog = false
+                showGitHubSyncDialog = true
+            }
+        )
+    }
+
+    if (showGitHubSyncDialog) {
+        GitHubCloudSyncDialog(
+            viewModel = viewModel,
+            onDismiss = { showGitHubSyncDialog = false }
+        )
+    }
+
+    if (showFirestoreDialog) {
+        FirestoreDatabaseDialog(
+            viewModel = viewModel,
+            onDismiss = { showFirestoreDialog = false }
         )
     }
 }
@@ -645,12 +670,20 @@ fun DailyPriceItemRow(
 @Composable
 fun AdminProductsCatalogTab(
     products: List<Product>,
+    viewModel: GroceryViewModel,
     onEditProduct: (Product) -> Unit,
     onDeleteProduct: (Product) -> Unit,
     onAddClick: () -> Unit,
     onResetOfficial: () -> Unit,
-    onImportSheetClick: () -> Unit
+    onImportSheetClick: () -> Unit,
+    onGitHubSyncClick: () -> Unit,
+    onFirestoreClick: () -> Unit
 ) {
+    val lastSummary by viewModel.lastSyncSummary.collectAsState()
+    val isSyncing by viewModel.isSyncingCentral.collectAsState()
+    val firestoreSyncState by viewModel.firestoreSyncState.collectAsState()
+    val firestoreSummary by viewModel.firestoreLastSyncSummary.collectAsState()
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -668,41 +701,116 @@ fun AdminProductsCatalogTab(
                         .fillMaxWidth()
                         .padding(12.dp)
                 ) {
-                    Text(
-                        text = "Store Produce Catalog (${products.size} Items)",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = EmeraldGreenDark
-                    )
-                    Text(
-                        text = "Produce catalog with live rates, multilingual titles, and image links.",
-                        fontSize = 11.sp,
-                        color = EmeraldGreenDark.copy(alpha = 0.85f)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Store Produce Catalog (${products.size} Items)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = EmeraldGreenDark
+                            )
+                            Text(
+                                text = "Centralized cloud database with real-time price & photo syncing.",
+                                fontSize = 11.sp,
+                                color = EmeraldGreenDark.copy(alpha = 0.85f)
+                            )
+                        }
+
+                        // Realtime status pill
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    when (firestoreSyncState) {
+                                        is FirestoreSyncState.Connected -> Color(0xFFC8E6C9)
+                                        is FirestoreSyncState.Connecting -> Color(0xFFFFF9C4)
+                                        is FirestoreSyncState.Error -> Color(0xFFFFCDD2)
+                                        else -> EmeraldGreenPrimary.copy(alpha = 0.2f)
+                                    }
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = when (firestoreSyncState) {
+                                    is FirestoreSyncState.Connected -> "● Firestore Live"
+                                    is FirestoreSyncState.Connecting -> "Connecting..."
+                                    is FirestoreSyncState.Error -> "Offline"
+                                    else -> "Firestore Ready"
+                                },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when (firestoreSyncState) {
+                                    is FirestoreSyncState.Connected -> Color(0xFF1B5E20)
+                                    is FirestoreSyncState.Connecting -> Color(0xFFF57F17)
+                                    is FirestoreSyncState.Error -> Color(0xFFB71C1C)
+                                    else -> EmeraldGreenDark
+                                }
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Button(
+                            onClick = onFirestoreClick,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            Icon(imageVector = Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Firestore Sync", fontSize = 11.sp)
+                        }
+
                         Button(
                             onClick = onImportSheetClick,
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
-                            modifier = Modifier.weight(1f)
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenDark),
+                            modifier = Modifier.weight(1.1f)
                         ) {
-                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Import Sheet 2 (URLs & Items)", fontSize = 12.sp)
+                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Import Sheet 2", fontSize = 11.sp)
                         }
 
                         OutlinedButton(
                             onClick = onResetOfficial,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(0.8f)
                         ) {
-                            Text("Sync (37)", fontSize = 12.sp)
+                            Text("Reset (37)", fontSize = 11.sp)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onFirestoreClick() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            tint = EmeraldGreenDark,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Central Firestore: $firestoreSummary • Tap to manage",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = EmeraldGreenDark
+                        )
                     }
                 }
             }
@@ -2093,7 +2201,8 @@ fun SheetImportDialog(
     onDismiss: () -> Unit,
     onImport: (String) -> Unit,
     importResult: SheetImportResult?,
-    onClearResult: () -> Unit
+    onClearResult: () -> Unit,
+    onOpenGitHubSync: () -> Unit = {}
 ) {
     var sheetText by remember { mutableStateOf("") }
 
@@ -2157,7 +2266,7 @@ fun SheetImportDialog(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text(
-                                text = "✓ Import Completed!",
+                                text = "✓ Import Completed Locally!",
                                 fontWeight = FontWeight.Bold,
                                 color = EmeraldGreenDark,
                                 fontSize = 12.sp
@@ -2168,6 +2277,21 @@ fun SheetImportDialog(
                                 fontSize = 11.sp,
                                 color = EmeraldGreenDark
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = onOpenGitHubSync,
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenDark),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudSync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sync Centrally with GitHub / Cloud", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
