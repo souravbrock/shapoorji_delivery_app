@@ -14,17 +14,25 @@ on:
         required: false
         default: 'manual-build'
 
+permissions:
+  contents: write # required for softprops/action-gh-release to create GitHub Releases
+
 jobs:
   build:
     name: Build signed APK + latest.json
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
       GRADLE_OPTS: "-Djava.awt.headless=true -Dorg.gradle.jvmargs='-Xmx4g -Dfile.encoding=UTF-8 -Djava.awt.headless=true'"
+      # softprops/action-gh-release still runs on Node 20 (deprecated on runners);
+      # allow it until upstream migrates to Node 24.
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
