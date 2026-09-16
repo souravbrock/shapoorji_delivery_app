@@ -1,0 +1,1 @@
+v1.1.0: Firestore centralized catalog, signed GitHub Releases with latest.json, in-app update check, Obtainium and IzzyOnDroid support.

@@ -1,0 +1,15 @@
+Shapoorji Delivery is a grocery delivery app serving inside Shapoorji (Shukhobrishti township).
+
+Customer features:
+- Product catalog with search and categories
+- Cart, checkout and order tracking
+- Google sign-in and user profiles
+- Location verification for township addresses
+- Invoice download, favorites and product reviews
+
+Admin features:
+- Dashboard with price updates
+- Bulk product import and centralized catalog sync
+- Email and Telegram order notifications
+
+Updates are distributed as signed APKs via GitHub Releases with in-place upgrades (no uninstall needed), and are also consumable via Obtainium and the IzzyOnDroid repository.
