@@ -1,0 +1,1 @@
+v1.3.2: fixes startup crash from v1.3.1, keeps email-verified Store Accounts and website order sync.

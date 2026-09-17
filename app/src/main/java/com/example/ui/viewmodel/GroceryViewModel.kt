@@ -79,6 +79,17 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     val lastSyncSummary = MutableStateFlow(centralSyncManager.lastSyncSummary)
     val isAutoSyncEnabled = MutableStateFlow(centralSyncManager.isAutoSyncEnabled)
 
+    // Store Account (website) state. Declared before init: the init block
+    // restores the session on launch, so these must already be initialized.
+    val websiteBackend = WebsiteBackend(application)
+    private val _websiteAuthState =
+        MutableStateFlow<WebsiteAuthState>(WebsiteAuthState.SignedOut)
+    val websiteAuthState: StateFlow<WebsiteAuthState> = _websiteAuthState.asStateFlow()
+    private val _websiteOrders = MutableStateFlow<List<WebsiteOrderSummary>>(emptyList())
+    val websiteOrders: StateFlow<List<WebsiteOrderSummary>> = _websiteOrders.asStateFlow()
+    val isWebsiteSignedIn: Boolean
+        get() = _websiteAuthState.value is WebsiteAuthState.SignedIn
+
     init {
         viewModelScope.launch {
             repository.syncOfficialCatalog()
@@ -323,15 +334,7 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     // Store Account (website) — durable identity shared with
     // spdelivery.reddevils.co.in. Survives reinstalls: profile + order
     // history are restored from the server after re-login.
-    val websiteBackend = WebsiteBackend(getApplication())
-    private val _websiteAuthState =
-        MutableStateFlow<WebsiteAuthState>(WebsiteAuthState.SignedOut)
-    val websiteAuthState: StateFlow<WebsiteAuthState> = _websiteAuthState.asStateFlow()
-    private val _websiteOrders = MutableStateFlow<List<WebsiteOrderSummary>>(emptyList())
-    val websiteOrders: StateFlow<List<WebsiteOrderSummary>> = _websiteOrders.asStateFlow()
-    val isWebsiteSignedIn: Boolean
-        get() = _websiteAuthState.value is WebsiteAuthState.SignedIn
-
+    // (State is declared above init; functions live here.)
     /** Mirror the website profile into the local profile (keeps gating + admin checks working). */
     private fun applyWebsiteUser(user: WebsiteUser, silent: Boolean = false) {
         val tower = selectedTower.value.ifBlank { currentUser.value.tower }
