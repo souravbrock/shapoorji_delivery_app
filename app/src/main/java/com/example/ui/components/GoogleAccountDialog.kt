@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.data.model.UserProfile
+import com.example.data.website.WebsiteAuthState
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
 import com.example.ui.theme.EmeraldGreenPrimary
@@ -57,13 +58,18 @@ fun GoogleAccountDialog(
     onDismiss: () -> Unit,
     onSaveProfile: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
     onSignOut: () -> Unit,
-    onCheckForUpdates: (() -> Unit)? = null
+    onCheckForUpdates: (() -> Unit)? = null,
+    websiteAuthState: WebsiteAuthState = WebsiteAuthState.SignedOut,
+    onWebsiteLogin: (email: String, password: String) -> Unit = { _, _ -> },
+    onWebsiteSignup: (name: String, email: String, password: String, phone: String) -> Unit = { _, _, _, _ -> },
+    onWebsiteLogout: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf(currentUser.email) }
     var name by remember { mutableStateOf(currentUser.name) }
     var phone by remember { mutableStateOf(currentUser.phone) }
     var tower by remember { mutableStateOf(currentUser.tower) }
     var flat by remember { mutableStateOf(currentUser.flatNumber) }
+    var storePassword by remember { mutableStateOf("") }
 
     val isAdminEmail = email.trim().equals("souravbrock@gmail.com", ignoreCase = true)
 
@@ -190,6 +196,95 @@ fun GoogleAccountDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 )
+
+                // Store Account (spdelivery.reddevils.co.in) — required for
+                // checkout; restores profile + order history after reinstalls.
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (websiteAuthState is WebsiteAuthState.SignedIn) Color(0xFFE8F5E9)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Store Account (spdelivery.reddevils.co.in)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = EmeraldGreenDark
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        when (websiteAuthState) {
+                            is WebsiteAuthState.SignedIn -> {
+                                Text(
+                                    text = "✓ Linked as ${websiteAuthState.user.email} — orders sync to the store.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF1B5E20)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = onWebsiteLogout,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Unlink Store Account", fontSize = 11.sp)
+                                }
+                            }
+                            is WebsiteAuthState.Loading -> {
+                                Text(
+                                    text = "Connecting to store...",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            else -> {
+                                if (websiteAuthState is WebsiteAuthState.Error) {
+                                    Text(
+                                        text = websiteAuthState.message,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                OutlinedTextField(
+                                    value = storePassword,
+                                    onValueChange = { storePassword = it },
+                                    label = { Text("Store Password") },
+                                    placeholder = { Text("Min 6 characters") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button(
+                                        onClick = { onWebsiteLogin(email.trim(), storePassword) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = EmeraldGreenPrimary
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Sign In", fontSize = 12.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            onWebsiteSignup(
+                                                name.trim(),
+                                                email.trim(),
+                                                storePassword,
+                                                phone.trim()
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Create Account", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // App Version & Update Status
                 Box(

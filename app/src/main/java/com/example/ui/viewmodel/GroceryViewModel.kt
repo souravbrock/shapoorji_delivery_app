@@ -25,6 +25,10 @@ import com.example.data.sync.CentralSyncResult
 import com.example.data.sync.GitHubPublishResult
 import com.example.data.update.AppUpdateManager
 import com.example.data.update.UpdateStatus
+import com.example.data.website.WebsiteAuthState
+import com.example.data.website.WebsiteBackend
+import com.example.data.website.WebsiteOrderSummary
+import com.example.data.website.WebsiteUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -99,6 +103,8 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+        // Restore durable Store Account session (profile + order history).
+        restoreWebsiteSession()
     }
 
     /** Manual pull of the live website catalog (spdelivery.reddevils.co.in). */
@@ -312,6 +318,116 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         toastMessage.value = "Signed out of Google account"
     }
 
+    // Store Account (website) — durable identity shared with
+    // spdelivery.reddevils.co.in. Survives reinstalls: profile + order
+    // history are restored from the server after re-login.
+    val websiteBackend = WebsiteBackend(getApplication())
+    private val _websiteAuthState =
+        MutableStateFlow<WebsiteAuthState>(WebsiteAuthState.SignedOut)
+    val websiteAuthState: StateFlow<WebsiteAuthState> = _websiteAuthState.asStateFlow()
+    private val _websiteOrders = MutableStateFlow<List<WebsiteOrderSummary>>(emptyList())
+    val websiteOrders: StateFlow<List<WebsiteOrderSummary>> = _websiteOrders.asStateFlow()
+    val isWebsiteSignedIn: Boolean
+        get() = _websiteAuthState.value is WebsiteAuthState.SignedIn
+
+    /** Mirror the website profile into the local profile (keeps gating + admin checks working). */
+    private fun applyWebsiteUser(user: WebsiteUser, silent: Boolean = false) {
+        val tower = selectedTower.value.ifBlank { currentUser.value.tower }
+        val flat = flatInput.value.ifBlank { currentUser.value.flatNumber }
+        authManager.signInWithGoogle(
+            name = user.fullName.ifBlank { currentUser.value.name },
+            email = user.email,
+            phone = user.phone.ifBlank { currentUser.value.phone },
+            tower = tower,
+            flat = flat
+        )
+        _websiteAuthState.value = WebsiteAuthState.SignedIn(user)
+        if (!silent) toastMessage.value = "Signed in to Store Account (${user.email})"
+    }
+
+    fun restoreWebsiteSession() {
+        viewModelScope.launch {
+            _websiteAuthState.value = WebsiteAuthState.Loading
+            try {
+                val sessionUser = websiteBackend.fetchSession()
+                if (sessionUser != null) {
+                    applyWebsiteUser(sessionUser, silent = true)
+                    _websiteOrders.value = websiteBackend.fetchOrders()
+                } else {
+                    _websiteAuthState.value = WebsiteAuthState.SignedOut
+                }
+            } catch (_: Exception) {
+                _websiteAuthState.value = WebsiteAuthState.SignedOut
+            }
+        }
+    }
+
+    fun websiteLogin(email: String, password: String) {
+        viewModelScope.launch {
+            _websiteAuthState.value = WebsiteAuthState.Loading
+            val result = websiteBackend.login(email, password)
+            if (result.isSuccess) {
+                applyWebsiteUser(result.getOrNull()!!)
+                _websiteOrders.value = websiteBackend.fetchOrders()
+            } else {
+                val msg = result.exceptionOrNull()?.message ?: "Sign-in failed"
+                _websiteAuthState.value = WebsiteAuthState.Error(msg)
+                toastMessage.value = msg
+            }
+        }
+    }
+
+    fun websiteSignup(name: String, email: String, password: String, phone: String) {
+        viewModelScope.launch {
+            _websiteAuthState.value = WebsiteAuthState.Loading
+            val result = websiteBackend.signup(email, password)
+            if (result.isSuccess) {
+                // Push profile details to the website account (best-effort).
+                try {
+                    websiteBackend.updateProfile(
+                        fullName = name,
+                        phone = phone,
+                        address = "${flatInput.value}, ${selectedTower.value}".trim().trim(',')
+                    )
+                } catch (_: Exception) {
+                }
+                val user = result.getOrNull()!!.copy(
+                    fullName = name.ifBlank { result.getOrNull()!!.fullName },
+                    phone = phone.ifBlank { result.getOrNull()!!.phone }
+                )
+                applyWebsiteUser(user)
+                _websiteOrders.value = websiteBackend.fetchOrders()
+            } else {
+                val msg = result.exceptionOrNull()?.message ?: "Account creation failed"
+                _websiteAuthState.value = WebsiteAuthState.Error(msg)
+                toastMessage.value = msg
+            }
+        }
+    }
+
+    fun websiteLogout() {
+        viewModelScope.launch {
+            try {
+                websiteBackend.logout()
+            } catch (_: Exception) {
+            } finally {
+                _websiteAuthState.value = WebsiteAuthState.SignedOut
+                _websiteOrders.value = emptyList()
+                toastMessage.value = "Signed out of Store Account"
+            }
+        }
+    }
+
+    fun refreshWebsiteOrders() {
+        if (!isWebsiteSignedIn) return
+        viewModelScope.launch {
+            try {
+                _websiteOrders.value = websiteBackend.fetchOrders()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     // Cart operations (Room-backed)
     fun addToCart(productId: Long, quantity: Double = 1.0, portionLabel: String = "") {
         viewModelScope.launch {
@@ -378,10 +494,16 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Order Placement
+    // Order Placement (requires Store Account sign-in so the order is also
+    // recorded on spdelivery.reddevils.co.in and survives reinstalls).
     fun placeOrder(onSuccess: (Order) -> Unit, onError: (String) -> Unit) {
         if (!isLocationInsideShapoorji.value) {
             onError("Orders cannot be placed outside Shapoorji! Please verify your location inside Shapoorji Shukhobrishti.")
+            return
+        }
+
+        if (!isWebsiteSignedIn) {
+            onError("Please sign in with your Store Account first (tap the profile icon) — orders are synced to spdelivery.reddevils.co.in.")
             return
         }
 
@@ -422,8 +544,41 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
                     paymentMethod = "Pay on Delivery (Cash / UPI QR)"
                 )
 
+                // Dual-write: mirror the order to the website (best-effort — the
+                // local order plus email/Telegram alerts already succeeded).
+                var storeSyncNote = ""
+                try {
+                    val webItems = websiteBackend.resolveWebsiteItems(
+                        items.map { item ->
+                            Triple(
+                                item.product.name.split("|").first().trim(),
+                                item.quantity,
+                                item.product.unit to item.product.price
+                            )
+                        }
+                    )
+                    if (webItems.isNotEmpty()) {
+                        val webResult = websiteBackend.placeOrder(
+                            customerName = currentUser.value.name,
+                            customerPhone = currentUser.value.phone,
+                            tower = selectedTower.value,
+                            flat = flatInput.value,
+                            notes = deliveryNotesInput.value,
+                            items = webItems
+                        )
+                        if (webResult.isSuccess) {
+                            storeSyncNote = " • synced to store"
+                            refreshWebsiteOrders()
+                        } else {
+                            storeSyncNote = " • store sync failed (${webResult.exceptionOrNull()?.message})"
+                        }
+                    }
+                } catch (e: Exception) {
+                    storeSyncNote = " • store sync failed (${e.message})"
+                }
+
                 clearCart()
-                toastMessage.value = "Order #${order.orderNumber} placed! Email sent from order@spdelivery.reddevils.co.in"
+                toastMessage.value = "Order #${order.orderNumber} placed! Email sent from order@spdelivery.reddevils.co.in$storeSyncNote"
                 onSuccess(order)
             } catch (e: Exception) {
                 onError("Failed to place order: ${e.message}")

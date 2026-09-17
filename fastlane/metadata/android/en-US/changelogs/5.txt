@@ -1,0 +1,1 @@
+v1.3.0: Store Account sign-in (spdelivery.reddevils.co.in) — profile and order history survive reinstalls, checkout syncs orders to the store.

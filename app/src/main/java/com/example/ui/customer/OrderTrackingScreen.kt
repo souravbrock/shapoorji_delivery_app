@@ -80,6 +80,8 @@ fun OrderTrackingScreen(
     modifier: Modifier = Modifier
 ) {
     val orders by viewModel.customerOrders.collectAsState()
+    val websiteOrders by viewModel.websiteOrders.collectAsState()
+    val websiteAuthState by viewModel.websiteAuthState.collectAsState()
     var selectedOrderId by remember { mutableStateOf(initialOrderId ?: orders.firstOrNull()?.id) }
 
     val activeOrder = orders.find { it.id == selectedOrderId } ?: orders.firstOrNull()
@@ -100,7 +102,7 @@ fun OrderTrackingScreen(
             )
         }
     ) { innerPadding ->
-        if (orders.isEmpty()) {
+        if (orders.isEmpty() && websiteOrders.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -139,6 +141,53 @@ fun OrderTrackingScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Store Account orders (spdelivery.reddevils.co.in) — survive reinstalls.
+                if (websiteAuthState is com.example.data.website.WebsiteAuthState.SignedIn &&
+                    websiteOrders.isNotEmpty()
+                ) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = EmeraldContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Store Account Orders (${websiteOrders.size})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = EmeraldGreenDark
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                websiteOrders.take(5).forEach { web ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 3.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "#${web.id.take(8)} • ${web.status.replace('_', ' ')}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = EmeraldGreenDark,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = "₹${web.total.toInt()}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldGreenPrimary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 // If there are multiple orders, allow quick selector
                 if (orders.size > 1) {
                     item {

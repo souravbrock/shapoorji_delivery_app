@@ -82,6 +82,8 @@ fun CheckoutScreen(
     val lat by viewModel.currentLatitude.collectAsState()
     val lng by viewModel.currentLongitude.collectAsState()
     val isInsideShapoorji by viewModel.isLocationInsideShapoorji.collectAsState()
+    val websiteAuthState by viewModel.websiteAuthState.collectAsState()
+    val isStoreLinked = websiteAuthState is com.example.data.website.WebsiteAuthState.SignedIn
 
     var selectedPaymentMethod by remember { mutableStateOf("Pay on Delivery (Cash / UPI QR)") }
     var isPlacingOrder by remember { mutableStateOf(false) }
@@ -177,6 +179,16 @@ fun CheckoutScreen(
                                 fontSize = 15.sp
                             )
                         }
+                    }
+
+                    if (!isStoreLinked) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "⚠️ Store Account required: sign in with your spdelivery.reddevils.co.in account (tap the profile icon on the catalog) to place orders.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
 
                     if (!isInsideShapoorji) {
