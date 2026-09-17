@@ -1,0 +1,1 @@
+v1.2.1: live website catalog sync (spdelivery.reddevils.co.in), removed cloud-sync buttons, update-safe releases for Obtainium.

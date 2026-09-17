@@ -76,17 +76,46 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     init {
         viewModelScope.launch {
             repository.syncOfficialCatalog()
-            // Auto-sync with central GitHub / remote repository on launch
-            if (centralSyncManager.isAutoSyncEnabled && centralSyncManager.centralSyncUrl.isNotBlank()) {
+            // Auto-sync with the live website catalog (spdelivery.reddevils.co.in)
+            // on launch; falls back to the configured central URL otherwise.
+            // Local Room database is retained if the network is unreachable.
+            if (centralSyncManager.isAutoSyncEnabled) {
                 try {
-                    val result = centralSyncManager.fetchAndSyncCatalog()
-                    if (result.success) {
-                        centralSyncResult.value = result
+                    val websiteResult = centralSyncManager.fetchAndSyncFromWebsite()
+                    if (websiteResult.success &&
+                        (websiteResult.updatedCount > 0 || websiteResult.addedCount > 0)
+                    ) {
+                        centralSyncResult.value = websiteResult
                         refreshCentralSyncState()
+                    } else if (centralSyncManager.centralSyncUrl.isNotBlank()) {
+                        val result = centralSyncManager.fetchAndSyncCatalog()
+                        if (result.success) {
+                            centralSyncResult.value = result
+                            refreshCentralSyncState()
+                        }
                     }
                 } catch (_: Exception) {
                     // Retain local offline Room database if remote is not reachable
                 }
+            }
+        }
+    }
+
+    /** Manual pull of the live website catalog (spdelivery.reddevils.co.in). */
+    fun syncWithWebsite(onComplete: ((CentralSyncResult) -> Unit)? = null) {
+        viewModelScope.launch {
+            isSyncingCentral.value = true
+            try {
+                val result = centralSyncManager.fetchAndSyncFromWebsite()
+                centralSyncResult.value = result
+                refreshCentralSyncState()
+                onComplete?.invoke(result)
+            } catch (e: Exception) {
+                val failure = CentralSyncResult(success = false, message = e.message ?: "Sync failed")
+                centralSyncResult.value = failure
+                onComplete?.invoke(failure)
+            } finally {
+                isSyncingCentral.value = false
             }
         }
     }

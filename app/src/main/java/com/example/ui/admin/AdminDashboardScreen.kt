@@ -91,7 +91,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.ui.text.TextStyle
-import com.example.data.firestore.FirestoreSyncState
 import com.example.data.repository.SheetImportResult
 import com.example.data.model.NotificationLog
 import com.example.data.model.NotificationType
@@ -679,143 +678,12 @@ fun AdminProductsCatalogTab(
     onGitHubSyncClick: () -> Unit,
     onFirestoreClick: () -> Unit
 ) {
-    val lastSummary by viewModel.lastSyncSummary.collectAsState()
-    val isSyncing by viewModel.isSyncingCentral.collectAsState()
-    val firestoreSyncState by viewModel.firestoreSyncState.collectAsState()
-    val firestoreSummary by viewModel.firestoreLastSyncSummary.collectAsState()
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = EmeraldContainer)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Store Produce Catalog (${products.size} Items)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = EmeraldGreenDark
-                            )
-                            Text(
-                                text = "Centralized cloud database with real-time price & photo syncing.",
-                                fontSize = 11.sp,
-                                color = EmeraldGreenDark.copy(alpha = 0.85f)
-                            )
-                        }
-
-                        // Realtime status pill
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    when (firestoreSyncState) {
-                                        is FirestoreSyncState.Connected -> Color(0xFFC8E6C9)
-                                        is FirestoreSyncState.Connecting -> Color(0xFFFFF9C4)
-                                        is FirestoreSyncState.Error -> Color(0xFFFFCDD2)
-                                        else -> EmeraldGreenPrimary.copy(alpha = 0.2f)
-                                    }
-                                )
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = when (firestoreSyncState) {
-                                    is FirestoreSyncState.Connected -> "● Firestore Live"
-                                    is FirestoreSyncState.Connecting -> "Connecting..."
-                                    is FirestoreSyncState.Error -> "Offline"
-                                    else -> "Firestore Ready"
-                                },
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = when (firestoreSyncState) {
-                                    is FirestoreSyncState.Connected -> Color(0xFF1B5E20)
-                                    is FirestoreSyncState.Connecting -> Color(0xFFF57F17)
-                                    is FirestoreSyncState.Error -> Color(0xFFB71C1C)
-                                    else -> EmeraldGreenDark
-                                }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Button(
-                            onClick = onFirestoreClick,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
-                            modifier = Modifier.weight(1.2f)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Firestore Sync", fontSize = 11.sp)
-                        }
-
-                        Button(
-                            onClick = onImportSheetClick,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenDark),
-                            modifier = Modifier.weight(1.1f)
-                        ) {
-                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Import Sheet 2", fontSize = 11.sp)
-                        }
-
-                        OutlinedButton(
-                            onClick = onResetOfficial,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(0.8f)
-                        ) {
-                            Text("Reset (37)", fontSize = 11.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onFirestoreClick() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudSync,
-                            contentDescription = null,
-                            tint = EmeraldGreenDark,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Central Firestore: $firestoreSummary • Tap to manage",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = EmeraldGreenDark
-                        )
-                    }
-                }
-            }
-        }
-
         items(products, key = { it.id }) { product ->
             Card(
                 modifier = Modifier.fillMaxWidth(),

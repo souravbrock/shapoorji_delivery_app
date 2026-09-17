@@ -63,6 +63,11 @@ class CentralCatalogSyncManager(
 
         // Default GitHub Raw catalog URL (can be customized by admin)
         const val DEFAULT_CENTRAL_SYNC_URL = "https://raw.githubusercontent.com/souravbrock/shapoorji-delivery/main/catalog.json"
+
+        // Website catalog (source of truth): spdelivery.reddevils.co.in storefront,
+        // served by the reddevils.co.in backend API. Product edits on the website
+        // flow into the app through fetchAndSyncFromWebsite().
+        const val WEBSITE_PRODUCTS_URL = "https://reddevils.co.in/api/products?activeOnly=1&orderBy=name"
     }
 
     private val prefs: SharedPreferences =
@@ -155,6 +160,159 @@ class CentralCatalogSyncManager(
                 sourceUrl = url,
                 message = "Central sync error: ${e.localizedMessage ?: e.message}"
             )
+        }
+    }
+
+    /**
+     * Pull the live website catalog (spdelivery.reddevils.co.in via the
+     * reddevils.co.in backend API) and merge it into the local Room database.
+     *
+     * Matching is by product name (English segment), so local row IDs — and with
+     * them carts, favorites, orders and reviews — stay stable across syncs.
+     * Only website-managed fields are overwritten (name, category, unit, price,
+     * stock, description, image); app-side fields (ratings, Daily Essential flag,
+     * fractional settings) are preserved.
+     */
+    suspend fun fetchAndSyncFromWebsite(targetUrl: String = WEBSITE_PRODUCTS_URL): CentralSyncResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url(targetUrl)
+                    .header("User-Agent", "ShapoorjiDelivery-AndroidApp")
+                    .header("Accept", "application/json")
+                    .get()
+                    .build()
+
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext CentralSyncResult(
+                            success = false,
+                            sourceUrl = targetUrl,
+                            message = "Website catalog unreachable: HTTP ${response.code}"
+                        )
+                    }
+                    val raw = response.body?.string() ?: ""
+                    if (raw.isBlank()) {
+                        return@withContext CentralSyncResult(
+                            success = false,
+                            sourceUrl = targetUrl,
+                            message = "Website catalog response was empty."
+                        )
+                    }
+                    applyWebsiteCatalog(JSONArray(raw), targetUrl)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Website catalog sync failed: ${e.message}", e)
+                CentralSyncResult(
+                    success = false,
+                    sourceUrl = targetUrl,
+                    message = "Website sync error: ${e.localizedMessage ?: e.message}"
+                )
+            }
+        }
+
+    private suspend fun applyWebsiteCatalog(jsonArray: JSONArray, sourceUrl: String): CentralSyncResult {
+        val existing = productDao.getAllProductsDirect().toMutableList()
+        var updated = 0
+        var added = 0
+
+        for (i in 0 until jsonArray.length()) {
+            val item = jsonArray.optJSONObject(i) ?: continue
+            val name = item.optString("name", "").trim()
+            if (name.isBlank()) continue
+
+            val price = item.optDouble("price", -1.0)
+            val unit = normalizeWebsiteUnit(item.optString("unit", "1 kg"))
+            val imageUrl = item.optString("image_url", "").trim()
+            val stock = item.optInt("stock", -1)
+            val description = item.optString("description", "").trim().ifBlank { name }
+            val category = normalizeWebsiteCategory(
+                item.optJSONObject("category")?.optString("name", "") ?: ""
+            )
+
+            val englishCandidate = name.split("|").first().trim().lowercase()
+            val matched = existing.find { prod ->
+                prod.name.equals(name, ignoreCase = true) ||
+                prod.name.split("|").first().trim().equals(englishCandidate, ignoreCase = true)
+            }
+
+            if (matched != null) {
+                val merged = matched.copy(
+                    name = name,
+                    category = category.ifBlank { matched.category },
+                    unit = unit,
+                    price = if (price > 0.0) price else matched.price,
+                    mrp = if (price > 0.0) price else matched.price,
+                    stockQty = if (stock >= 0) stock else matched.stockQty,
+                    description = description,
+                    imageUrl = imageUrl.ifBlank { matched.imageUrl },
+                    isAvailable = if (stock >= 0) stock > 0 else matched.isAvailable,
+                    updatedAt = System.currentTimeMillis()
+                )
+                if (merged != matched) {
+                    productDao.updateProduct(merged)
+                    val idx = existing.indexOfFirst { it.id == matched.id }
+                    if (idx >= 0) existing[idx] = merged
+                    updated++
+                }
+            } else {
+                val lowerUnit = unit.lowercase()
+                val divisible = lowerUnit.contains("kg") || lowerUnit.contains("gm") ||
+                        lowerUnit.contains("gram") || lowerUnit.contains("l")
+                val fine = name.contains("Garlic", ignoreCase = true) ||
+                        name.contains("Ginger", ignoreCase = true) ||
+                        name.contains("Chilli", ignoreCase = true)
+                val newProduct = Product(
+                    name = name,
+                    category = category.ifBlank { "Vegetables" },
+                    unit = unit,
+                    price = if (price > 0.0) price else 60.0,
+                    mrp = if (price > 0.0) price else 60.0,
+                    stockQty = if (stock >= 0) stock else 50,
+                    description = description,
+                    imageUrl = imageUrl,
+                    isAvailable = if (stock >= 0) stock > 0 else true,
+                    allowFractional = divisible,
+                    fractionStepGrams = if (fine) 100 else 250,
+                    updatedAt = System.currentTimeMillis()
+                )
+                val newId = productDao.insertProduct(newProduct)
+                existing.add(newProduct.copy(id = newId))
+                added++
+            }
+        }
+
+        if (updated > 0 || added > 0) {
+            lastSyncTimestamp = System.currentTimeMillis()
+            lastSyncSummary = "Website sync: $updated updated, $added added (${existing.size} total)"
+        }
+        return CentralSyncResult(
+            success = true,
+            updatedCount = updated,
+            addedCount = added,
+            totalCount = existing.size,
+            sourceUrl = sourceUrl,
+            message = "Website catalog synced ($updated updated, $added added)."
+        )
+    }
+
+    private fun normalizeWebsiteUnit(raw: String): String {
+        val t = raw.trim()
+        return when (t.lowercase()) {
+            "1kg" -> "1 kg"
+            "100gms", "100gm", "100g" -> "100 g"
+            "1pc", "1pcs", "1piece" -> "1 pc"
+            "1bunch" -> "1 bunch"
+            else -> t.ifBlank { "1 kg" }
+        }
+    }
+
+    private fun normalizeWebsiteCategory(raw: String): String {
+        val t = raw.trim().lowercase()
+        return when (t) {
+            "vegetables", "fruits", "dairy", "rice", "grocery", "bakery", "beverages" ->
+                t.replaceFirstChar { it.uppercase() }
+            else -> raw.trim()
         }
     }
 

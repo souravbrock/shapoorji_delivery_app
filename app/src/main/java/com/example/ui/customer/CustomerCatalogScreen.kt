@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
@@ -35,7 +34,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -85,7 +83,6 @@ fun CustomerCatalogScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTower by viewModel.selectedTower.collectAsState()
-    val isSyncingCentral by viewModel.isSyncingCentral.collectAsState()
     val firestoreSyncState by viewModel.firestoreSyncState.collectAsState()
 
     var reviewProductTarget by remember { mutableStateOf<Product?>(null) }
@@ -256,27 +253,9 @@ fun CustomerCatalogScreen(
                     }
                 }
 
-                // Action Icons: Sync, Favorites, Tracking, Google User, Admin Toggle
+                // Action Icons: Favorites, Tracking, Google User, Admin Toggle
+                // (Catalog syncs automatically from spdelivery.reddevils.co.in on launch.)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = { viewModel.syncWithCentralCloud() },
-                        enabled = !isSyncingCentral
-                    ) {
-                        if (isSyncingCentral) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = EmeraldGreenPrimary
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.CloudSync,
-                                contentDescription = "Sync latest produce catalog",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
                     IconButton(onClick = onNavigateToFavorites) {
                         Icon(
                             imageVector = Icons.Default.Favorite,

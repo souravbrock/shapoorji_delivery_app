@@ -81,6 +81,20 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 not set — release APK will use debug fallback key. Do not publish as a release."
           fi
 
+      # A tag build signed with the wrong key forces users to uninstall.
+      # Fail fast instead of publishing a signature-mismatched release.
+      - name: Require release key for tag builds
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "${HAS_RELEASE_KEY}" != "true" ]; then
+            echo "::error::Tag build without ANDROID_KEYSTORE_BASE64 would ship a debug-signed APK. Configure release secrets first."
+            exit 1
+          fi
+          if [ -z "${STORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+            echo "::error::STORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD secrets must all be set for tag builds."
+            exit 1
+          fi
+
       - name: Prepare Secrets & Environment
         run: |
           # Create placeholder .env if not present
