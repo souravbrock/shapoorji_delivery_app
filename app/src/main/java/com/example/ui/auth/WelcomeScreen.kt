@@ -83,6 +83,8 @@ import com.example.data.auth.FirebaseAuthService
 import com.example.data.auth.GoogleAuthResult
 import com.example.data.model.OfficialCatalog
 import com.example.data.model.UserProfile
+import com.example.data.website.EmailOtpState
+import com.example.data.website.WebsiteAuthState
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
 import com.example.ui.theme.EmeraldGreenPrimary
@@ -97,7 +99,15 @@ import kotlinx.coroutines.launch
 @Composable
 fun WelcomeScreen(
     onGoogleSignIn: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
-    firebaseAuthService: FirebaseAuthService? = null
+    firebaseAuthService: FirebaseAuthService? = null,
+    websiteAuthState: WebsiteAuthState = WebsiteAuthState.SignedOut,
+    emailOtpState: EmailOtpState = EmailOtpState.Idle,
+    onWebsiteLogin: (email: String, password: String) -> Unit = { _, _ -> },
+    onRequestSignupOtp: (email: String) -> Unit = {},
+    onConfirmSignupOtp: (
+        name: String, email: String, password: String, phone: String,
+        tower: String, flat: String, code: String
+    ) -> Unit = { _, _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -641,7 +651,7 @@ fun WelcomeScreen(
         )
     }
 
-    // Production Resident Account Sign-in Dialog (with instant auto-fill for registered residents)
+    // Production Resident Account Sign-in Dialog (email-verified Store Account required)
     if (showResidentLoginDialog) {
         ResidentGoogleLoginDialog(
             authManager = authManager,
@@ -657,7 +667,12 @@ fun WelcomeScreen(
                 prefillEmail = ""
                 prefillName = ""
                 onGoogleSignIn(name, email, phone, tower, flat)
-            }
+            },
+            websiteAuthState = websiteAuthState,
+            emailOtpState = emailOtpState,
+            onWebsiteLogin = onWebsiteLogin,
+            onRequestSignupOtp = onRequestSignupOtp,
+            onConfirmSignupOtp = onConfirmSignupOtp
         )
     }
 }
@@ -1012,7 +1027,15 @@ fun ResidentGoogleLoginDialog(
     initialEmail: String = "",
     initialName: String = "",
     onDismiss: () -> Unit,
-    onLoginComplete: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit
+    onLoginComplete: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
+    websiteAuthState: WebsiteAuthState = WebsiteAuthState.SignedOut,
+    emailOtpState: EmailOtpState = EmailOtpState.Idle,
+    onWebsiteLogin: (email: String, password: String) -> Unit = { _, _ -> },
+    onRequestSignupOtp: (email: String) -> Unit = {},
+    onConfirmSignupOtp: (
+        name: String, email: String, password: String, phone: String,
+        tower: String, flat: String, code: String
+    ) -> Unit = { _, _, _, _, _, _, _ -> }
 ) {
     val registeredUsers = remember { authManager.getAllRegisteredUsers() }
 
@@ -1021,6 +1044,35 @@ fun ResidentGoogleLoginDialog(
     var phone by remember { mutableStateOf("+91-") }
     var selectedTower by remember { mutableStateOf("Shukhobrishti Phase 1 - Tower A1") }
     var flatNumber by remember { mutableStateOf("") }
+    var storePassword by remember { mutableStateOf("") }
+    var otpCode by remember { mutableStateOf("") }
+    // Set when the user explicitly starts a website sign-in/signup, so a
+    // pre-existing session for another email can't auto-admit them.
+    var webActionArmed by remember { mutableStateOf(false) }
+
+    val linkedEmail = (websiteAuthState as? WebsiteAuthState.SignedIn)?.user?.email
+    val isLinkedForEnteredEmail = !linkedEmail.isNullOrBlank() &&
+        linkedEmail.equals(email.trim(), ignoreCase = true)
+
+    // No one proceeds past this dialog without a verified Store Account.
+    LaunchedEffect(linkedEmail, webActionArmed, email) {
+        if (webActionArmed && isLinkedForEnteredEmail) {
+            webActionArmed = false
+            val finalEmail = email.trim()
+            val finalName = name.trim().ifBlank {
+                finalEmail.substringBefore("@").replace(".", " ")
+                    .split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+            }
+            val finalPhone = if (phone.length > 5) phone.trim() else "+91-8442980101"
+            onLoginComplete(
+                finalName,
+                finalEmail,
+                finalPhone,
+                selectedTower.trim().ifBlank { "Shukhobrishti Phase 1 - Tower A1" },
+                flatNumber.trim()
+            )
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(initialEmail, initialName) {
         if (initialEmail.isNotBlank()) {
@@ -1228,30 +1280,155 @@ fun ResidentGoogleLoginDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
                 )
+
+                OutlinedTextField(
+                    value = storePassword,
+                    onValueChange = { storePassword = it },
+                    label = { Text("Store Password *") },
+                    placeholder = { Text("Min 6 characters") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                // Email verification gate: a code is mailed before any new
+                // account may proceed.
+                val otpSent = emailOtpState is EmailOtpState.CodeSent ||
+                    emailOtpState is EmailOtpState.Failed
+                if (emailOtpState is EmailOtpState.Failed) {
+                    Text(
+                        text = emailOtpState.message,
+                        fontSize = 12.sp,
+                        color = Color(0xFFC62828)
+                    )
+                }
+                if (otpSent && emailOtpState !is EmailOtpState.Failed) {
+                    Text(
+                        text = "Verification code sent to ${email.trim()} — check inbox/spam (valid 10 min).",
+                        fontSize = 12.sp,
+                        color = EmeraldGreenDark,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (otpSent) {
+                    OutlinedTextField(
+                        value = otpCode,
+                        onValueChange = { otpCode = it },
+                        label = { Text("6-digit Verification Code *") },
+                        placeholder = { Text("123456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                } else if (websiteAuthState is WebsiteAuthState.Error) {
+                    Text(
+                        text = websiteAuthState.message,
+                        fontSize = 12.sp,
+                        color = Color(0xFFC62828)
+                    )
+                }
+                if (websiteAuthState is WebsiteAuthState.Loading ||
+                    emailOtpState is EmailOtpState.Sending
+                ) {
+                    Text(
+                        text = "Contacting store...",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val finalEmail = email.trim()
-                    val finalName = if (name.isNotBlank()) name.trim() else finalEmail.substringBefore("@").replace(".", " ").capitalize()
-                    val finalPhone = if (phone.length > 5) phone.trim() else "+91-8442980101"
-                    val finalTower = if (selectedTower.isNotBlank()) selectedTower.trim() else "Shukhobrishti Phase 1 - Tower A4"
-                    val finalFlat = if (flatNumber.isNotBlank()) flatNumber.trim() else "Flat 803"
-
-                    onLoginComplete(finalName, finalEmail, finalPhone, finalTower, finalFlat)
-                },
-                enabled = email.contains("@") && email.contains("."),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRegistered) EmeraldGreenDark else EmeraldGreenPrimary
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = if (isRegistered) "Sign In as ${name.ifBlank { "Resident" }}" else "Register & Continue to Store",
-                    fontWeight = FontWeight.Bold
-                )
+            val busy = websiteAuthState is WebsiteAuthState.Loading ||
+                emailOtpState is EmailOtpState.Sending
+            val emailOk = email.contains("@") && email.contains(".")
+            val otpSent = emailOtpState is EmailOtpState.CodeSent ||
+                emailOtpState is EmailOtpState.Failed
+            if (isLinkedForEnteredEmail) {
+                Button(
+                    onClick = {
+                        val finalEmail = email.trim()
+                        val finalName = name.trim().ifBlank {
+                            finalEmail.substringBefore("@").replace(".", " ")
+                                .split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+                        }
+                        val finalPhone = if (phone.length > 5) phone.trim() else "+91-8442980101"
+                        onLoginComplete(
+                            finalName,
+                            finalEmail,
+                            finalPhone,
+                            selectedTower.trim().ifBlank { "Shukhobrishti Phase 1 - Tower A1" },
+                            flatNumber.trim()
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenDark),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(text = "Continue to Store", fontWeight = FontWeight.Bold)
+                }
+            } else if (otpSent) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            webActionArmed = true
+                            onConfirmSignupOtp(
+                                name.trim(),
+                                email.trim(),
+                                storePassword,
+                                phone.trim(),
+                                selectedTower.trim(),
+                                flatNumber.trim(),
+                                otpCode.trim()
+                            )
+                        },
+                        enabled = emailOk && otpCode.trim().length >= 4 && !busy,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenPrimary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "Verify & Create", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { onRequestSignupOtp(email.trim()) },
+                        enabled = emailOk && !busy,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "Resend Code", fontSize = 13.sp)
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            webActionArmed = true
+                            onWebsiteLogin(email.trim(), storePassword)
+                        },
+                        enabled = emailOk && storePassword.isNotBlank() && !busy,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreenDark),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "Sign In", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { onRequestSignupOtp(email.trim()) },
+                        enabled = emailOk && !busy,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "Create Account", fontSize = 13.sp)
+                    }
+                }
             }
         },
         dismissButton = {}

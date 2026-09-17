@@ -91,6 +91,15 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
             onGoogleSignIn = { name, email, phone, tower, flat ->
                 viewModel.registerOrUpdateCustomer(name, email, phone, tower, flat)
                 backstack = listOf(AppScreen.Catalog)
+            },
+            websiteAuthState = websiteAuthState,
+            emailOtpState = emailOtpState,
+            onWebsiteLogin = { email, password -> viewModel.websiteLogin(email, password) },
+            onRequestSignupOtp = { email -> viewModel.requestSignupOtp(email) },
+            onConfirmSignupOtp = { name, email, password, phone, tower, flat, code ->
+                viewModel.selectedTower.value = tower
+                viewModel.flatInput.value = flat
+                viewModel.confirmSignupOtp(name, email, password, phone, code)
             }
         )
         return
