@@ -108,7 +108,7 @@ private class PersistentCookieJar(context: Context) : CookieJar {
 }
 
 /**
- * HTTP client for the website backend (https://reddevils.co.in/api/*).
+ * HTTP client for the website backend (https://reddevils.co.in/api/...).
  * Same API the spdelivery.reddevils.co.in storefront uses: cookie sessions,
  * JSON bodies, no API keys. All calls are best-effort safe (Result-based).
  */
