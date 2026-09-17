@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.data.model.UserProfile
+import com.example.data.website.EmailOtpState
 import com.example.data.website.WebsiteAuthState
 import com.example.ui.theme.EmeraldContainer
 import com.example.ui.theme.EmeraldGreenDark
@@ -61,7 +62,10 @@ fun GoogleAccountDialog(
     onCheckForUpdates: (() -> Unit)? = null,
     websiteAuthState: WebsiteAuthState = WebsiteAuthState.SignedOut,
     onWebsiteLogin: (email: String, password: String) -> Unit = { _, _ -> },
-    onWebsiteSignup: (name: String, email: String, password: String, phone: String) -> Unit = { _, _, _, _ -> },
+    emailOtpState: EmailOtpState = EmailOtpState.Idle,
+    onRequestSignupOtp: (email: String) -> Unit = {},
+    onConfirmSignupOtp: (name: String, email: String, password: String, phone: String, code: String) -> Unit =
+        { _, _, _, _, _ -> },
     onWebsiteLogout: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf(currentUser.email) }
@@ -70,6 +74,7 @@ fun GoogleAccountDialog(
     var tower by remember { mutableStateOf(currentUser.tower) }
     var flat by remember { mutableStateOf(currentUser.flatNumber) }
     var storePassword by remember { mutableStateOf("") }
+    var otpCode by remember { mutableStateOf("") }
 
     val isAdminEmail = email.trim().equals("souravbrock@gmail.com", ignoreCase = true)
 
@@ -255,6 +260,69 @@ fun GoogleAccountDialog(
                                     shape = RoundedCornerShape(10.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
+                                val otpSent = emailOtpState is EmailOtpState.CodeSent ||
+                                    emailOtpState is EmailOtpState.Failed
+                                if (emailOtpState is EmailOtpState.Sending) {
+                                    Text(
+                                        text = "Sending verification code...",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (otpSent) {
+                                    if (emailOtpState is EmailOtpState.Failed) {
+                                        Text(
+                                            text = emailOtpState.message,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    } else {
+                                        Text(
+                                            text = "Code sent to ${email.trim()} — check inbox/spam (10 min valid).",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF1B5E20)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
+                                    OutlinedTextField(
+                                        value = otpCode,
+                                        onValueChange = { otpCode = it },
+                                        label = { Text("6-digit Code") },
+                                        placeholder = { Text("123456") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Button(
+                                            onClick = {
+                                                onConfirmSignupOtp(
+                                                    name.trim(),
+                                                    email.trim(),
+                                                    storePassword,
+                                                    phone.trim(),
+                                                    otpCode.trim()
+                                                )
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = EmeraldGreenPrimary
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Verify & Create", fontSize = 12.sp)
+                                        }
+                                        OutlinedButton(
+                                            onClick = { onRequestSignupOtp(email.trim()) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Resend Code", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Button(
                                         onClick = { onWebsiteLogin(email.trim(), storePassword) },
@@ -267,14 +335,7 @@ fun GoogleAccountDialog(
                                         Text("Sign In", fontSize = 12.sp)
                                     }
                                     OutlinedButton(
-                                        onClick = {
-                                            onWebsiteSignup(
-                                                name.trim(),
-                                                email.trim(),
-                                                storePassword,
-                                                phone.trim()
-                                            )
-                                        },
+                                        onClick = { onRequestSignupOtp(email.trim()) },
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {

@@ -73,6 +73,7 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
     val showUpdateDialog by viewModel.showUpdateDialog.collectAsState()
     val updateStatus by viewModel.updateStatus.collectAsState()
     val websiteAuthState by viewModel.websiteAuthState.collectAsState()
+    val emailOtpState by viewModel.emailOtpState.collectAsState()
 
     var showGoogleAccountDialog by remember { mutableStateOf(false) }
 
@@ -218,8 +219,10 @@ fun ShapoorjiDeliveryApp(viewModel: GroceryViewModel) {
             },
             websiteAuthState = websiteAuthState,
             onWebsiteLogin = { email, password -> viewModel.websiteLogin(email, password) },
-            onWebsiteSignup = { name, email, password, phone ->
-                viewModel.websiteSignup(name, email, password, phone)
+            emailOtpState = emailOtpState,
+            onRequestSignupOtp = { email -> viewModel.requestSignupOtp(email) },
+            onConfirmSignupOtp = { name, email, password, phone, code ->
+                viewModel.confirmSignupOtp(name, email, password, phone, code)
             },
             onWebsiteLogout = { viewModel.websiteLogout() }
         )

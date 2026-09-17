@@ -25,6 +25,8 @@ import com.example.data.sync.CentralSyncResult
 import com.example.data.sync.GitHubPublishResult
 import com.example.data.update.AppUpdateManager
 import com.example.data.update.UpdateStatus
+import com.example.data.website.EmailOtpState
+import com.example.data.website.EmailOtpVerifier
 import com.example.data.website.WebsiteAuthState
 import com.example.data.website.WebsiteBackend
 import com.example.data.website.WebsiteOrderSummary
@@ -378,6 +380,12 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun websiteSignup(name: String, email: String, password: String, phone: String) {
+        if (!otpVerifier.isVerified(email)) {
+            _emailOtpState.value =
+                EmailOtpState.Failed("Verify your email address first — request a code below")
+            toastMessage.value = "Verify your email address first"
+            return
+        }
         viewModelScope.launch {
             _websiteAuthState.value = WebsiteAuthState.Loading
             val result = websiteBackend.signup(email, password)
@@ -426,6 +434,48 @@ class GroceryViewModel(application: Application) : AndroidViewModel(application)
             } catch (_: Exception) {
             }
         }
+    }
+
+    // Email verification for new Store Accounts (OTP via store SMTP).
+    val otpVerifier = EmailOtpVerifier(getApplication())
+    private val _emailOtpState =
+        MutableStateFlow<EmailOtpState>(EmailOtpState.Idle)
+    val emailOtpState: StateFlow<EmailOtpState> = _emailOtpState.asStateFlow()
+
+    fun requestSignupOtp(email: String) {
+        viewModelScope.launch {
+            _emailOtpState.value = EmailOtpState.Sending
+            val result = otpVerifier.sendCode(email)
+            _emailOtpState.value = if (result.isSuccess) {
+                EmailOtpState.CodeSent(
+                    email = email.trim(),
+                    resendAtMillis = System.currentTimeMillis() + 60_000L
+                )
+            } else {
+                EmailOtpState.Failed(result.exceptionOrNull()?.message ?: "Could not send code")
+            }
+        }
+    }
+
+    fun confirmSignupOtp(
+        name: String,
+        email: String,
+        password: String,
+        phone: String,
+        code: String
+    ) {
+        val check = otpVerifier.confirmCode(email, code)
+        if (check.isFailure) {
+            _emailOtpState.value =
+                EmailOtpState.Failed(check.exceptionOrNull()?.message ?: "Wrong code")
+            return
+        }
+        _emailOtpState.value = EmailOtpState.Verified(email.trim())
+        websiteSignup(name, email, password, phone)
+    }
+
+    fun resetEmailOtp() {
+        _emailOtpState.value = EmailOtpState.Idle
     }
 
     // Cart operations (Room-backed)

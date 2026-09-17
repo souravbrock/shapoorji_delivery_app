@@ -1,0 +1,1 @@
+v1.3.1: email verification for new Store Accounts — 6-digit code sent to your inbox before the account is created.
