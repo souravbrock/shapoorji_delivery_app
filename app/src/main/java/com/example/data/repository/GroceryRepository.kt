@@ -1,6 +1,5 @@
 package com.example.data.repository
 
-import com.example.data.firestore.FirestoreProductService
 import com.example.data.local.CartDao
 import com.example.data.local.FavoriteDao
 import com.example.data.local.NotificationLogDao
@@ -17,11 +16,7 @@ import com.example.data.model.OrderStatus
 import com.example.data.model.Product
 import com.example.data.model.Review
 import com.example.data.notification.NotificationDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -44,49 +39,21 @@ class GroceryRepository(
     private val favoriteDao: FavoriteDao,
     private val notificationLogDao: NotificationLogDao,
     private val cartDao: CartDao,
-    private val dispatcher: NotificationDispatcher,
-    val firestoreService: FirestoreProductService? = null,
-    private val repositoryScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val dispatcher: NotificationDispatcher
 ) {
     val productDaoInstance: ProductDao get() = productDao
 
-    init {
-        // Automatically hook into Firestore real-time snapshot updates
-        if (firestoreService != null) {
-            repositoryScope.launch {
-                try {
-                    // Check if centralized Firestore database needs initial catalog migration
-                    if (firestoreService.isCollectionEmpty()) {
-                        val local = productDao.getAllProductsDirect().ifEmpty { OfficialCatalog.INITIAL_PRODUCTS }
-                        firestoreService.migrateCatalogToFirestore(local)
-                    }
-
-                    // Listen in real-time for any price or photo updates across all devices
-                    firestoreService.observeProductsRealtime().collect { firestoreProducts ->
-                        if (firestoreProducts.isNotEmpty()) {
-                            // Mirror into Room database to ensure robust offline support and instant UI queries
-                            productDao.insertAll(firestoreProducts)
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("GroceryRepository", "Firestore realtime listening error: ${e.message}")
-                }
-            }
-        }
-    }
-
-    // Products
+    // Products (Room is the local cache; spdelivery.reddevils.co.in is the
+    // central database, synced via CentralCatalogSyncManager + WebsiteBackend).
     val allProducts: Flow<List<Product>> = productDao.getAllProducts()
 
     suspend fun syncOfficialCatalog() {
         productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
-        firestoreService?.migrateCatalogToFirestore(OfficialCatalog.INITIAL_PRODUCTS)
     }
 
     suspend fun resetToOfficialCatalog() {
         productDao.deleteAllProducts()
         productDao.insertAll(OfficialCatalog.INITIAL_PRODUCTS)
-        firestoreService?.migrateCatalogToFirestore(OfficialCatalog.INITIAL_PRODUCTS)
     }
 
     fun getProductById(id: Long): Flow<Product?> = productDao.getProductById(id)
@@ -97,20 +64,15 @@ class GroceryRepository(
     fun searchProducts(query: String): Flow<List<Product>> = productDao.searchProducts(query)
 
     suspend fun insertProduct(product: Product): Long {
-        val id = productDao.insertProduct(product)
-        val finalProduct = if (product.id == 0L) product.copy(id = id) else product
-        firestoreService?.saveProduct(finalProduct)
-        return id
+        return productDao.insertProduct(product)
     }
 
     suspend fun updateProduct(product: Product) {
         productDao.updateProduct(product)
-        firestoreService?.saveProduct(product)
     }
 
     suspend fun updateStock(productId: Long, stockQty: Int) {
         productDao.updateStock(productId, stockQty)
-        firestoreService?.updateStock(productId, stockQty)
     }
 
     suspend fun updateProductDetails(
@@ -125,41 +87,18 @@ class GroceryRepository(
         fractionStepGrams: Int = 250
     ) {
         productDao.updateProductDetails(productId, name, price, description, imageUrl, unit, category, allowFractional, fractionStepGrams)
-        firestoreService?.updateProductDetails(productId, name, price, description, imageUrl, unit, category, allowFractional, fractionStepGrams)
     }
 
     suspend fun updateDailyPrice(productId: Long, newPrice: Double) {
         productDao.updateDailyPrice(productId, newPrice)
-        firestoreService?.updateDailyPrice(productId, newPrice)
     }
 
     suspend fun deleteProduct(product: Product) {
         productDao.deleteProduct(product)
-        firestoreService?.deleteProduct(product.id)
     }
 
     suspend fun deleteProductById(id: Long) {
         productDao.deleteProductById(id)
-        firestoreService?.deleteProduct(id)
-    }
-
-    suspend fun migrateAllToFirestore(): Result<Int> {
-        val local = productDao.getAllProductsDirect().ifEmpty { OfficialCatalog.INITIAL_PRODUCTS }
-        return firestoreService?.migrateCatalogToFirestore(local)
-            ?: Result.failure(IllegalStateException("Firestore service unavailable"))
-    }
-
-    suspend fun pullFromFirestore(): Result<Int> {
-        return firestoreService?.let { service ->
-            val remoteResult = service.fetchAllProductsDirect()
-            val products = remoteResult.getOrNull()
-            if (!products.isNullOrEmpty()) {
-                productDao.insertAll(products)
-                Result.success(products.size)
-            } else {
-                remoteResult.map { it.size }
-            }
-        } ?: Result.failure(IllegalStateException("Firestore service unavailable"))
     }
 
     /**
@@ -262,9 +201,6 @@ class GroceryRepository(
                 added++
                 log.add("Added future product: $cleanName")
             }
-        }
-        if (updated > 0 || added > 0) {
-            firestoreService?.migrateCatalogToFirestore(productDao.getAllProductsDirect())
         }
         return SheetImportResult(updated, added, skipped, log)
     }

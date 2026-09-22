@@ -1,9 +1,6 @@
 package com.example.ui.auth
 
-import android.accounts.AccountManager
 import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -79,8 +76,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.auth.AuthManager
-import com.example.data.auth.FirebaseAuthService
-import com.example.data.auth.GoogleAuthResult
 import com.example.data.model.OfficialCatalog
 import com.example.data.model.UserProfile
 import com.example.data.website.EmailOtpState
@@ -91,15 +86,14 @@ import com.example.ui.theme.EmeraldGreenPrimary
 import kotlinx.coroutines.launch
 
 /**
- * Production Welcome & Google Sign-In Screen
+ * Production Welcome & Store Account Sign-In Screen
  *
- * Resident-focused design showcasing daily fresh vegetables and essentials
- * with authentic Google Sign-In via Credential Manager.
+ * Resident-focused design showcasing daily fresh vegetables and essentials.
+ * Entry is gated on the email-verified Store Account (spdelivery.reddevils.co.in).
  */
 @Composable
 fun WelcomeScreen(
     onGoogleSignIn: (name: String, email: String, phone: String, tower: String, flat: String) -> Unit,
-    firebaseAuthService: FirebaseAuthService? = null,
     websiteAuthState: WebsiteAuthState = WebsiteAuthState.SignedOut,
     emailOtpState: EmailOtpState = EmailOtpState.Idle,
     onWebsiteLogin: (email: String, password: String) -> Unit = { _, _ -> },
@@ -110,47 +104,15 @@ fun WelcomeScreen(
     ) -> Unit = { _, _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val authService = remember(context) { firebaseAuthService ?: FirebaseAuthService.getInstance(context) }
     val authManager = remember(context) { AuthManager.getInstance(context) }
 
     var lastUser by remember { mutableStateOf(authManager.getLastRegisteredUser()) }
     var registeredUsers by remember { mutableStateOf(authManager.getAllRegisteredUsers()) }
-    var isSigningIn by remember { mutableStateOf(false) }
     var showResidentLoginDialog by remember { mutableStateOf(false) }
     var showGoogleAccountChooser by remember { mutableStateOf(false) }
     var prefillEmail by remember { mutableStateOf("") }
     var prefillName by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val googleAccountPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        isSigningIn = false
-        if (result.resultCode == Activity.RESULT_OK) {
-            val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
-            if (!accountName.isNullOrBlank()) {
-                val existing = authManager.getRegisteredUser(accountName)
-                if (existing != null) {
-                    onGoogleSignIn(
-                        existing.name,
-                        existing.email,
-                        existing.phone,
-                        existing.tower,
-                        existing.flatNumber
-                    )
-                } else {
-                    prefillEmail = accountName
-                    val derivedName = accountName.substringBefore("@")
-                        .replace(".", " ")
-                        .split(" ")
-                        .joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
-                    prefillName = derivedName
-                    showResidentLoginDialog = true
-                }
-            }
-        }
-    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -469,114 +431,29 @@ fun WelcomeScreen(
                             }
                         }
 
-                        // PRODUCTION GOOGLE SIGN-IN BUTTON
-                        Surface(
+                        // STORE ACCOUNT SIGN-IN (spdelivery.reddevils.co.in) —
+                        // the only way in. Email is verified by code at registration.
+                        Button(
+                            onClick = {
+                                errorMessage = null
+                                prefillEmail = ""
+                                prefillName = ""
+                                showResidentLoginDialog = true
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .clickable(enabled = !isSigningIn) {
-                                    coroutineScope.launch {
-                                        isSigningIn = true
-                                        errorMessage = null
-                                        when (val result = authService.signInWithGoogle(context)) {
-                                            is GoogleAuthResult.Success -> {
-                                                isSigningIn = false
-                                                val existing = authManager.getRegisteredUser(result.email)
-                                                if (existing != null) {
-                                                    onGoogleSignIn(
-                                                        result.displayName.ifBlank { existing.name },
-                                                        result.email,
-                                                        existing.phone,
-                                                        existing.tower,
-                                                        existing.flatNumber
-                                                    )
-                                                } else {
-                                                    prefillEmail = result.email
-                                                    prefillName = result.displayName
-                                                    showResidentLoginDialog = true
-                                                }
-                                            }
-                                            is GoogleAuthResult.NeedsFallbackPicker, is GoogleAuthResult.Failure -> {
-                                                isSigningIn = false
-                                                try {
-                                                    val intent = AccountManager.newChooseAccountIntent(
-                                                        null,
-                                                        null,
-                                                        arrayOf("com.google"),
-                                                        null,
-                                                        null,
-                                                        null,
-                                                        null
-                                                    )
-                                                    googleAccountPickerLauncher.launch(intent)
-                                                } catch (e: Exception) {
-                                                    if (registeredUsers.isNotEmpty()) {
-                                                        showGoogleAccountChooser = true
-                                                    } else {
-                                                        prefillEmail = ""
-                                                        prefillName = ""
-                                                        showResidentLoginDialog = true
-                                                    }
-                                                }
-                                            }
-                                            is GoogleAuthResult.Cancelled -> {
-                                                isSigningIn = false
-                                            }
-                                        }
-                                    }
-                                },
+                                .height(52.dp),
                             shape = RoundedCornerShape(12.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, Color(0xFFDADCE0)),
-                            shadowElevation = 2.dp
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldGreenPrimary
+                            )
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                if (isSigningIn) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(22.dp),
-                                        strokeWidth = 2.dp,
-                                        color = EmeraldGreenDark
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = "Connecting with Google...",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF3C4043)
-                                    )
-                                } else {
-                                    // Google 'G' Brand Icon
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF4285F4)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "G",
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White,
-                                            fontSize = 15.sp
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Text(
-                                        text = if (lastUser != null) "Choose another Google account" else "Sign in with Google",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF3C4043)
-                                    )
-                                }
-                            }
+                            Text(
+                                text = "Sign In / Create Store Account",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
 
                         // Resident flat sign-in alternative
@@ -593,7 +470,7 @@ fun WelcomeScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Enter Flat & Google Email Directly",
+                                text = "Enter Email & Flat Details",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = EmeraldGreenDark
@@ -827,7 +704,7 @@ private fun ResidentFeatureItem(
 }
 
 /**
- * Google Account Chooser Dialog (1-Tap Selection for known/registered accounts)
+ * Account Chooser Dialog (1-Tap Selection for known/registered accounts)
  */
 @Composable
 fun GoogleAccountChooserDialog(
@@ -862,7 +739,7 @@ fun GoogleAccountChooserDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Sign in with Google",
+                            text = "Choose Store Account",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
@@ -968,7 +845,7 @@ fun GoogleAccountChooserDialog(
                     }
                 }
 
-                // Add or use another Google account
+                // Add or use another account
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1004,7 +881,7 @@ fun GoogleAccountChooserDialog(
                                 fontSize = 13.sp
                             )
                             Text(
-                                text = "Sign in with a different Google account or flat",
+                                text = "Sign in with a different email or flat",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1019,7 +896,7 @@ fun GoogleAccountChooserDialog(
 }
 
 /**
- * Production Resident Google Login & Flat Details Dialog (with auto-lookup and instant login)
+ * Production Resident Login & Flat Details Dialog (email-verified Store Account gate)
  */
 @Composable
 fun ResidentGoogleLoginDialog(
@@ -1120,14 +997,14 @@ fun ResidentGoogleLoginDialog(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF4285F4)),
+                            .background(EmeraldGreenPrimary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "G",
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            fontSize = 15.sp
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1223,7 +1100,7 @@ fun ResidentGoogleLoginDialog(
                     }
                 } else {
                     Text(
-                        text = "Enter your Google email and flat details. Once registered, your profile is permanently saved on this device.",
+                        text = "Enter your email and flat details. New emails must verify with a mailed code; your Store Account is shared with spdelivery.reddevils.co.in.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1232,7 +1109,7 @@ fun ResidentGoogleLoginDialog(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Google Account Email *") },
+                    label = { Text("Email Address *") },
                     placeholder = { Text("e.g. resident@gmail.com") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),

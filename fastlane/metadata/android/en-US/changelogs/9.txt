@@ -1,0 +1,1 @@
+v1.4.0: zero Google — Store Account sign-in only, all data on our own hosting (spdelivery.reddevils.co.in), Firebase removed.

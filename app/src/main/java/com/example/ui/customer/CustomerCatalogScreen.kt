@@ -56,7 +56,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.firestore.FirestoreSyncState
 import com.example.data.model.Product
 import com.example.ui.components.ProductCard
 import com.example.ui.components.ProductReviewsSheet
@@ -83,7 +82,9 @@ fun CustomerCatalogScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTower by viewModel.selectedTower.collectAsState()
-    val firestoreSyncState by viewModel.firestoreSyncState.collectAsState()
+    // Website is the central database; pill reflects the last website catalog sync.
+    val centralSyncResult by viewModel.centralSyncResult.collectAsState()
+    val websiteSynced = centralSyncResult?.success == true
 
     var reviewProductTarget by remember { mutableStateOf<Product?>(null) }
 
@@ -231,7 +232,7 @@ fun CustomerCatalogScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFFE8F5E9) else Color(0xFFF1F8E9))
+                                .background(if (websiteSynced) Color(0xFFE8F5E9) else Color(0xFFF1F8E9))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -239,14 +240,14 @@ fun CustomerCatalogScreen(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFF2E7D32) else EmeraldGreenPrimary)
+                                        .background(if (websiteSynced) Color(0xFF2E7D32) else EmeraldGreenPrimary)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (firestoreSyncState is FirestoreSyncState.Connected) "Live Rates" else "Synced",
+                                    text = if (websiteSynced) "Live Rates" else "Synced",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (firestoreSyncState is FirestoreSyncState.Connected) Color(0xFF1B5E20) else EmeraldGreenDark
+                                    color = if (websiteSynced) Color(0xFF1B5E20) else EmeraldGreenDark
                                 )
                             }
                         }

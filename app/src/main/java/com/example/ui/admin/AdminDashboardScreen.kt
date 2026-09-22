@@ -132,7 +132,6 @@ fun AdminDashboardScreen(
     var showAddProductDialog by remember { mutableStateOf(false) }
     var showImportSheetDialog by remember { mutableStateOf(false) }
     var showGitHubSyncDialog by remember { mutableStateOf(false) }
-    var showFirestoreDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<Product?>(null) }
     val sheetImportResult by viewModel.sheetImportResult.collectAsState()
 
@@ -268,7 +267,7 @@ fun AdminDashboardScreen(
                     onResetOfficial = { viewModel.resetToOfficialCatalog() },
                     onImportSheetClick = { showImportSheetDialog = true },
                     onGitHubSyncClick = { showGitHubSyncDialog = true },
-                    onFirestoreClick = { showFirestoreDialog = true }
+                    onFirestoreClick = { }
                 )
                 3 -> AdminNotificationLogsTab(
                     logs = logs,
@@ -340,13 +339,6 @@ fun AdminDashboardScreen(
         GitHubCloudSyncDialog(
             viewModel = viewModel,
             onDismiss = { showGitHubSyncDialog = false }
-        )
-    }
-
-    if (showFirestoreDialog) {
-        FirestoreDatabaseDialog(
-            viewModel = viewModel,
-            onDismiss = { showFirestoreDialog = false }
         )
     }
 }

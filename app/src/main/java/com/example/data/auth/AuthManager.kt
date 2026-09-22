@@ -1,37 +1,21 @@
 package com.example.data.auth
 
-import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.GetCredentialResponse
 import com.example.data.model.UserProfile
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.userProfileChangeRequest
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 /**
- * Authentication Logic Layer with Firebase Auth & AndroidX Credential Manager
+ * Authentication Logic Layer (local device profile + Store Account).
  *
+ * No Google/Firebase: identity lives in SharedPreferences on this device and
+ * durably in the store backend (spdelivery.reddevils.co.in) via WebsiteBackend.
  * Enforces role-based security across the Shapoorji Delivery platform:
  * 1. Checks customer sign-in status (required to enter the app)
- * 2. Connects to Firebase Authentication for user management
- * 3. Supports Google Sign-In via Credential Manager & GoogleIdTokenCredential
- * 4. Strictly restricts Store Admin Console access to 'souravbrock@gmail.com'
+ * 2. Stores the resident profile locally on this device
+ * 3. Strictly restricts Store Admin Console access to 'souravbrock@gmail.com'
  */
 class AuthManager(private val context: Context) {
 
@@ -46,7 +30,6 @@ class AuthManager(private val context: Context) {
         private const val KEY_USER_TOWER = "user_tower"
         private const val KEY_USER_FLAT = "user_flat"
         private const val KEY_USER_PHOTO = "user_photo"
-        private const val KEY_FIREBASE_UID = "firebase_uid"
         private const val KEY_LAST_ACTIVE_EMAIL = "last_active_email"
         private const val KEY_REGISTERED_EMAILS = "registered_emails_set"
 
@@ -63,55 +46,8 @@ class AuthManager(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // Firebase Auth instance with graceful fallback
-    val firebaseAuth: FirebaseAuth? by lazy {
-        try {
-            FirebaseAuth.getInstance()
-        } catch (e: Throwable) {
-            Log.w(TAG, "Firebase Auth not initialized or missing google-services: ${e.message}")
-            null
-        }
-    }
-
-    private val credentialManager: CredentialManager by lazy {
-        CredentialManager.create(context)
-    }
-
     private val _currentUser = MutableStateFlow(loadInitialUser())
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
-
-    val currentFirebaseUser: FirebaseUser?
-        get() = try { firebaseAuth?.currentUser } catch (_: Throwable) { null }
-
-    val isFirebaseReady: Boolean
-        get() = firebaseAuth != null
-
-    init {
-        // Sync Firebase auth state if available
-        try {
-            firebaseAuth?.addAuthStateListener { auth ->
-                val fbUser = auth.currentUser
-                if (fbUser != null && !_currentUser.value.isGoogleSignedIn) {
-                    val email = fbUser.email ?: ""
-                    val name = fbUser.displayName ?: "Google User"
-                    val photoUrl = fbUser.photoUrl?.toString() ?: ""
-                    if (email.isNotBlank()) {
-                        val existing = getRegisteredUser(email)
-                        signInWithGoogle(
-                            name = name,
-                            email = email,
-                            phone = existing?.phone ?: prefs.getString(KEY_USER_PHONE, "") ?: "",
-                            tower = existing?.tower ?: prefs.getString(KEY_USER_TOWER, "Shukhobrishti Phase 1 - Tower A1") ?: "Shukhobrishti Phase 1 - Tower A1",
-                            flat = existing?.flatNumber ?: prefs.getString(KEY_USER_FLAT, "") ?: "",
-                            photoUrl = photoUrl
-                        )
-                    }
-                }
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Unable to register Firebase auth listener: ${e.message}")
-        }
-    }
 
     private fun loadInitialUser(): UserProfile {
         val isSignedIn = prefs.getBoolean(KEY_IS_SIGNED_IN, false)
@@ -249,7 +185,8 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Authenticates a user with Google credentials and synchronizes with Firebase Auth.
+     * Signs a resident in with the local device profile (name/email/phone/tower/flat).
+     * Durable identity is the Store Account on spdelivery.reddevils.co.in (see WebsiteBackend).
      */
     fun signInWithGoogle(
         name: String,
@@ -306,66 +243,9 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Authenticates with Firebase using a Google ID token credential.
-     */
-    suspend fun signInWithFirebaseIdToken(
-        idToken: String,
-        name: String,
-        email: String,
-        phone: String,
-        tower: String,
-        flat: String
-    ): Result<UserProfile> {
-        return try {
-            val auth = firebaseAuth
-            if (auth != null) {
-                val credential = GoogleAuthProvider.getCredential(idToken, null)
-                val authResult = auth.signInWithCredential(credential).await()
-                val fbUser = authResult.user
-                val resolvedName = fbUser?.displayName ?: name
-                val resolvedEmail = fbUser?.email ?: email
-                val photo = fbUser?.photoUrl?.toString() ?: ""
-
-                val profile = signInWithGoogle(
-                    name = resolvedName,
-                    email = resolvedEmail,
-                    phone = phone,
-                    tower = tower,
-                    flat = flat,
-                    photoUrl = photo
-                )
-                Result.success(profile)
-            } else {
-                // Fallback to local profile when Firebase Auth service is in offline/mock mode
-                val profile = signInWithGoogle(name, email, phone, tower, flat)
-                Result.success(profile)
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "Firebase sign-in with ID token failed", e)
-            // Even if network/Firebase fails, fallback gracefully to authenticated user profile
-            val profile = signInWithGoogle(name, email, phone, tower, flat)
-            Result.success(profile)
-        }
-    }
-
-    /**
-     * Signs out the user, clearing both Firebase Auth and local session.
+     * Signs out the user, clearing the local session.
      */
     fun signOut(): UserProfile {
-        try {
-            firebaseAuth?.signOut()
-        } catch (e: Throwable) {
-            Log.w(TAG, "Error signing out of Firebase: ${e.message}")
-        }
-
-        try {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    credentialManager.clearCredentialState(ClearCredentialStateRequest())
-                } catch (_: Throwable) {}
-            }
-        } catch (_: Throwable) {}
-
         val lastEmail = _currentUser.value.email.ifBlank {
             prefs.getString(KEY_USER_EMAIL, "") ?: ""
         }
